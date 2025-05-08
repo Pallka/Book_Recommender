@@ -1,0 +1,144 @@
+:root {
+    --c1: var(--1, #9C6644);
+    --c2: var(--2, #7F5539);
+    --c3: var(--3, #B08968);
+    --c4: var(--4, #DDB892);
+    --c5: var(--5, #E6CCB2);
+    --c6: var(--6, #EDE0D4);
+}
+
+.color-c4 {
+    background-color: var(--c4);
+}
+
+body > header > div > div > a > svg, 
+body > main > div > svg {
+    background-color: var(--c3);
+    border-radius: 0.375rem;
+}
+
+body {
+    background-color: var(--c6) !important;
+}
+
+#btnone {
+    display: flex;
+    /* width: 270px;
+    height: 59px; */
+    box-shadow: 0px 2px 5px 0px rgba(156, 102, 68, 0.56);
+    border-radius: 10px;
+    border: 2px solid var(--c2, #7F5539);
+    background: #FFF;
+    cursor: pointer;
+    justify-content: center;
+    align-items: center;
+
+    color: var(--c2, #7F5539);
+    /* h3 */
+    /* font-size: 24px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: normal;
+    margin-left:110px;
+    margin-top:20px;
+    padding: 15px 60px ; */
+}
+
+#btnone:hover {
+    border-radius: 10px;
+    border: 2px solid var(--c2, #7F5539);
+    background: var(--c5, #EDE0D4);
+    transform: scale(0.98);
+}
+
+#btnone:active,
+#btntwo:active{
+    color: #FFF;
+    border-radius: 10px;
+    border: 2px solid #FFF;
+    background: var(--c3, #B08968);
+}
+
+#btntwo {
+    color: var(--c3);
+    border-color: var(--c3);
+}
+
+#btntwo:hover {
+    background-color: var(--c3);
+    color: white;
+}
+
+button.btn > a {
+    color: inherit;
+    text-decoration: inherit;
+}
+
+form {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+    width: 100%;
+}
+label {
+    display: block;
+    margin: 10px 0 5px;
+}
+input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+button {
+    background: #007BFF;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+button:hover {
+    background: #0056b3;
+}
+
+.card-img-top {
+    width: 100%;
+    height: 200px; 
+    object-fit: cover; 
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .card-body {
+    flex-grow: 1;
+  }
+
+#alert-error {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+    background-color: #ffc4c9;
+    color: #721c24;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #721c25b3;
+    border-radius: 4px;
+}
+
+#alert-success {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+    background-color: #d4edda;
+    color: #155724;
+    padding: 10px;
+    margin: 10px 0;
+    border: 1px solid #c3e6cb;
+    border-radius: 4px;
+}
