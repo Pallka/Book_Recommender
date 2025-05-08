@@ -151,6 +151,16 @@ app.get('/books', async (req, res) => {
       console.error('Books fetch error:', err);
       return res.status(500).send('Internal Server Error');
     }
+});
+
+app.get('/books/:id', async (req, res) => {
+    try {
+      const book = await Book.findById(req.params.id);
+      if (!book) return res.status(404).send('Book not found');
+      res.render('book-details', { book });
+    } catch (err) {
+      res.status(500).send('Server error');
+    }
   });
 
 
