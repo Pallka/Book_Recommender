@@ -28,14 +28,34 @@ const LoginSchema = new mongoose.Schema({
         required: true 
     }
 }, {
-    collection: 'users', // Explicitly set collection name
-    timestamps: true // Add timestamps for created_at and updated_at
+    collection: 'users',
+    timestamps: true
 });
 
-// Create the model only after connection is established
-const collection = mongoose.model("users", LoginSchema);
+// Define the Book schema
+const BookSchema = new mongoose.Schema({
+    title: {
+        type: String,
+        required: true
+    },
+    author: {
+        type: String,
+        required: true
+    },
+    imageUrl: {
+        type: String,
+        default: '/images/default-book.jpg'
+    }
+}, {
+    collection: 'books',
+    timestamps: true
+});
 
-// Verify the collection exists
+// Create models
+const User = mongoose.model("users", LoginSchema);
+const Book = mongoose.model('Book', BookSchema);
+
+// Verify collections exist
 mongoose.connection.on('connected', async () => {
     try {
         const collections = await mongoose.connection.db.listCollections().toArray();
@@ -47,9 +67,19 @@ mongoose.connection.on('connected', async () => {
             await mongoose.connection.createCollection('users');
             console.log("Users collection created successfully");
         }
+        
+        if (!collectionNames.includes('books')) {
+            console.log("Creating books collection...");
+            await mongoose.connection.createCollection('books');
+            console.log("Books collection created successfully");
+        }
     } catch (error) {
         console.error("Error checking/creating collection:", error);
     }
 });
 
-module.exports = collection;
+// Export both models
+module.exports = {
+    User,
+    Book
+};
