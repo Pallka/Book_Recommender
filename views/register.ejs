@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Recommender 2025</title>
+    <link rel="stylesheet" href="./css/styles.css">
+    <link rel="icon" type="image/svg" href="images/book.svg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+</head>
+<body>
+  <!--Header-->
+  <header class="p-3 text-bg-dark">
+      <div class="container col-10">
+        <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start">
+          <a href="/" class="d-flex align-items-center mb-2 mb-lg-0 text-white text-decoration-none">
+            <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52" fill="none">
+              <path d="M8.66666 41.1667V10.8333C8.66666 9.68406 9.1232 8.58186 9.93586 7.7692C10.7485 6.95655 11.8507 6.5 13 6.5H42.0333C42.3781 6.5 42.7088 6.63696 42.9526 6.88076C43.1964 7.12456 43.3333 7.45522 43.3333 7.8V36.2137" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              <path d="M34.6667 19.0233C34.6664 20.327 34.1509 21.5778 33.2323 22.503C31.1177 24.635 29.0658 26.858 26.871 28.912C26.6259 29.1352 26.3045 29.2559 25.9731 29.249C25.6417 29.2422 25.3256 29.1083 25.09 28.8752L18.7677 22.5052C17.8486 21.5794 17.3329 20.3278 17.3329 19.0233C17.3329 17.7189 17.8486 16.4673 18.7677 15.5415C19.2262 15.0795 19.7717 14.7129 20.3726 14.4627C20.9736 14.2125 21.6181 14.0836 22.269 14.0836C22.9199 14.0836 23.5644 14.2125 24.1653 14.4627C24.7663 14.7129 25.3117 15.0795 25.7703 15.5415L26 15.7733L26.2297 15.5415C26.918 14.8457 27.7978 14.3705 28.7571 14.1763C29.7164 13.9822 30.7118 14.0779 31.6165 14.4513C32.5213 14.8246 33.2944 15.4588 33.8376 16.273C34.3808 17.0872 34.6694 18.0446 34.6667 19.0233Z" fill="url(#paint0_linear_80_109)" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M13 36.8333H43.3333M13 45.5H43.3333" stroke="white" stroke-width="2" stroke-linecap="round"/>
+              <path d="M13 45.5C11.8507 45.5 10.7485 45.0435 9.93586 44.2308C9.1232 43.4181 8.66666 42.3159 8.66666 41.1667C8.66666 40.0174 9.1232 38.9152 9.93586 38.1025C10.7485 37.2899 11.8507 36.8333 13 36.8333" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <defs>
+                <linearGradient id="paint0_linear_80_109" x1="35" y1="32" x2="2.5" y2="-3.49997" gradientUnits="userSpaceOnUse">
+                  <stop offset="0.0937294" stop-color="#FF3F3F"/>
+                  <stop offset="0.684149" stop-color="white"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <h3 class="float-md-start mb-0 mx-3">Book Recommender</h3>
+          </a>
+  
+          <ul class="nav col-12 col-lg-auto me-lg-auto mb-2 justify-content-center mb-md-0">
+            <li><a href="/" class="nav-link px-2 text-white">Home</a></li>
+            <li><a href="#" class="nav-link px-2 text-white">FAQs</a></li>
+            <li><a href="/about" class="nav-link px-2 text-white">About</a></li>
+          </ul>
+          <div class="text-end">
+            <button type="button" class="btn btn-outline-light me-2"><a href="/login">Log in</a></button>
+            <button type="button" class="btn btn-light color-c4"><a href="/register">Sign-up</a></button>
+          </div>
+        </div>
+      </div>
+  </header>
+
+  <main class="d-flex justify-content-center align-items-center vh-100">
+    <div style="max-width: 400px; width: 100%;">
+            <div class="alert-container"></div>
+            <form id="registerForm" action="/register" method="POST">
+                <div class="row">
+                    <% if (messages.error){%>
+                        <div id="alert-error">
+                            <strong><%= messages.error %></strong>
+                        </div>
+                    <% } %>
+                </div>
+                <h2 class="mb-4 text-center">Register</h2>
+
+                <div class="mb-3">
+                    <label for="register-name" class="form-label">Name:</label>
+                    <input type="text" id="register-name" name="name" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="register-email" class="form-label">Email:</label>
+                    <input type="email" id="register-email" name="email" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="register-password" class="form-label">Password:</label>
+                    <input type="password" id="register-password" name="password" class="form-control" required>
+                </div>
+
+                <div class="mb-3">
+                    <label for="register-confirm-password" class="form-label">Confirm Password:</label>
+                    <input type="password" id="register-confirm-password" name="confirmPassword" class="form-control" required>
+                </div>
+
+                <button type="submit" class="w-100" id="btnone">Register</button>
+            </form>
+        </div>
+  </main>
+
+  <footer class="py-3 text-bg-dark">
+    <div class="container d-flex flex-wrap justify-content-between align-items-center col-10 my-4 border-top ">
+      <p class="col-md-4 mb-0 text-light">© 2025 Kateryna Palka</p>
+
+    <a href="/" class="col-md-4 d-flex align-items-center justify-content-center mb-3 mb-md-0 me-md-auto link-body-emphasis text-decoration-none">
+      <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52" fill="none">
+        <path d="M8.66666 41.1667V10.8333C8.66666 9.68406 9.1232 8.58186 9.93586 7.7692C10.7485 6.95655 11.8507 6.5 13 6.5H42.0333C42.3781 6.5 42.7088 6.63696 42.9526 6.88076C43.1964 7.12456 43.3333 7.45522 43.3333 7.8V36.2137" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <path d="M34.6667 19.0233C34.6664 20.327 34.1509 21.5778 33.2323 22.503C31.1177 24.635 29.0658 26.858 26.871 28.912C26.6259 29.1352 26.3045 29.2559 25.9731 29.249C25.6417 29.2422 25.3256 29.1083 25.09 28.8752L18.7677 22.5052C17.8486 21.5794 17.3329 20.3278 17.3329 19.0233C17.3329 17.7189 17.8486 16.4673 18.7677 15.5415C19.2262 15.0795 19.7717 14.7129 20.3726 14.4627C20.9736 14.2125 21.6181 14.0836 22.269 14.0836C22.9199 14.0836 23.5644 14.2125 24.1653 14.4627C24.7663 14.7129 25.3117 15.0795 25.7703 15.5415L26 15.7733L26.2297 15.5415C26.918 14.8457 27.7978 14.3705 28.7571 14.1763C29.7164 13.9822 30.7118 14.0779 31.6165 14.4513C32.5213 14.8246 33.2944 15.4588 33.8376 16.273C34.3808 17.0872 34.6694 18.0446 34.6667 19.0233Z" fill="url(#paint0_linear_80_109)" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M13 36.8333H43.3333M13 45.5H43.3333" stroke="white" stroke-width="2" stroke-linecap="round"/>
+        <path d="M13 45.5C11.8507 45.5 10.7485 45.0435 9.93586 44.2308C9.1232 43.4181 8.66666 42.3159 8.66666 41.1667C8.66666 40.0174 9.1232 38.9152 9.93586 38.1025C10.7485 37.2899 11.8507 36.8333 13 36.8333" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <defs>
+          <linearGradient id="paint0_linear_80_109" x1="35" y1="32" x2="2.5" y2="-3.49997" gradientUnits="userSpaceOnUse">
+            <stop offset="0.0937294" stop-color="#FF3F3F"/>
+            <stop offset="0.684149" stop-color="white"/>
+          </linearGradient>
+        </defs>
+      </svg>
+    </a>
+
+    <ul class="nav col-md-4 justify-content-end">
+      <li class="nav-item "><a href="#" class="nav-link px-2 text-light">Home</a></li>
+      <li class="nav-item"><a href="#" class="nav-link px-2 text-light">Sign-up</a></li>
+      <li class="nav-item"><a href="#" class="nav-link px-2 text-light">Books</a></li>
+      <li class="nav-item"><a href="#" class="nav-link px-2 text-light">FAQs</a></li>
+      <li class="nav-item"><a href="#" class="nav-link px-2 text-light">About</a></li>
+    </ul>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="./index.ejs"></script>
+  <script src="./register.ejs"></script>
+</body>
+</html> 
