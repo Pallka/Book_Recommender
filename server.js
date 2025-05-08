@@ -9,29 +9,21 @@ const passport = require("passport");
 const flash = require("express-flash");
 const session = require("express-session");
 const methodOverride = require("method-override");
-const { MongoClient, ObjectId } = require("mongodb");
+const mongoose = require("mongoose");
 const initializePassport = require("./passport-config");
-let collection = require("./config");
+const User = require("./config");
 
-const uri = process.env.MONGO_URI;
-const client = new MongoClient(uri);
-
-async function connectToDB() {
-    try {
-        await client.connect();
-        const db = client.db("book-recommender");
-        collection = db.collection("users");
-        console.log("✅ MongoDB connected");
-    } catch (err) {
-        console.error("❌ MongoDB connection error:", err);
-    }
-}
-connectToDB();
+// Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/book-recommender', {
+    dbName: 'book-recommender' // Explicitly set database name
+})
+    .then(() => console.log("✅ MongoDB connected to book-recommender database"))
+    .catch(err => console.error("❌ MongoDB connection error:", err));
 
 initializePassport(
     passport,
-    async email => await collection.findOne({ email }),
-    async id => await collection.findOne({ _id: new ObjectId(id) })
+    async email => await User.findOne({ email }),
+    async id => await User.findById(id)
 );
 
 const PORT = 3000;
@@ -66,8 +58,6 @@ app.post("/login", checkNotAuthenticated, passport.authenticate("local", {
     failureFlash: true
 }));
 
-
-
 app.post("/register", checkNotAuthenticated, async (req, res) => {
     const data = {
         name: req.body.name,
@@ -80,17 +70,32 @@ app.post("/register", checkNotAuthenticated, async (req, res) => {
         return res.redirect("/register");
     }
     try {
-        const existingUser  = await collection.findOne({ email: data.email });
-        if (existingUser ) {
-            req.flash("error", "User  already exists");
+        console.log("Checking for existing user...");
+        const existingUser = await User.findOne({ email: data.email });
+        if (existingUser) {
+            req.flash("error", "User already exists");
             return res.redirect("/register");
         }
+
+        console.log("Hashing password...");
         const hashedPassword = await bcrypt.hash(data.password, 10);
         data.password = hashedPassword;
-        await collection.insertOne(data);
+        
+        console.log("Creating new user...");
+        const newUser = new User(data);
+        console.log("User data to save:", { ...data, password: '[HIDDEN]' });
+        
+        const savedUser = await newUser.save();
+        console.log("User saved successfully:", savedUser._id);
+        
         res.render("register_success");
     } catch (error) {
-        console.error("Signup error:", error);
+        console.error("Signup error details:", {
+            message: error.message,
+            code: error.code,
+            name: error.name,
+            stack: error.stack
+        });
         res.render("error");
     }
 });
