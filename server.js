@@ -118,7 +118,7 @@ app.get("/error", (req, res) => res.render("error"));
 
 app.get('/books', async (req, res) => {
     const page       = parseInt(req.query.page)  || 1;
-    const limit      =  9;
+    const limit      =  12;
     const skip       = (page - 1) * limit;
     const searchTerm = (req.query.search || '').trim();
   
