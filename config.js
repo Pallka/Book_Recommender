@@ -38,16 +38,28 @@ const BookSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    author: {
+    authors: {
         type: String,
         required: true
     },
-    imageUrl: {
+    thumbnail: {
         type: String,
         default: '/images/default-book.jpg'
-    }
+    },
+    description: {
+        type: String,
+        default: true
+    },
+    categories: {
+        type: String,
+        default: true
+    },
+    published_year: {
+        type: String,
+        default: true
+    },
 }, {
-    collection: 'books',
+    collection: 'books7k',
     timestamps: true
 });
 
@@ -68,7 +80,7 @@ mongoose.connection.on('connected', async () => {
             console.log("Users collection created successfully");
         }
         
-        if (!collectionNames.includes('books')) {
+        if (!collectionNames.includes('books7k')) {
             console.log("Creating books collection...");
             await mongoose.connection.createCollection('books');
             console.log("Books collection created successfully");
