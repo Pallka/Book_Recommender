@@ -117,26 +117,41 @@ app.get("/register_seccess", (req, res) => res.render("register_seccess"));
 app.get("/error", (req, res) => res.render("error"));
 
 app.get('/books', async (req, res) => {
-    const page = parseInt(req.query.page) || 1; // поточна сторінка
-    const limit = 9; // кількість книг на сторінці
-    const skip = (page - 1) * limit;
-
+    const page       = parseInt(req.query.page)  || 1;
+    const limit      =  9;
+    const skip       = (page - 1) * limit;
+    const searchTerm = (req.query.search || '').trim();
+  
+    // пошук
+    const filter = searchTerm
+      ? {
+          $or: [
+            { title:  new RegExp(searchTerm, 'i') },
+            { author: new RegExp(searchTerm, 'i') }
+          ]
+        }
+      : {};
+  
     try {
-        const totalBooks = await Book.countDocuments();
-        const totalPages = Math.ceil(totalBooks / limit);
-
-        const books = await Book.find().skip(skip).limit(limit);
-
-        res.render('books', {
-            books,
-            currentPage: page,
-            totalPages
-        });
-    } catch (error) {
-        console.error('Error fetching books:', error);
-        res.status(500).send('Internal Server Error');
+      const totalBooks = await Book.countDocuments(filter);
+      const totalPages = Math.ceil(totalBooks / limit);
+      const books      = await Book
+                               .find(filter)
+                               .skip(skip)
+                               .limit(limit);
+  
+      return res.render('books', {
+        books,
+        currentPage: page,
+        totalPages,
+        totalBooks,
+        searchTerm
+      });
+    } catch (err) {
+      console.error('Books fetch error:', err);
+      return res.status(500).send('Internal Server Error');
     }
-});
+  });
 
 
 function checkAuthenticated(req, res, next) {
