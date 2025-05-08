@@ -13,7 +13,7 @@
   <header class="p-3 text-bg-dark">
       <div class="container col-10">
         <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-lg-start">
-          <a href="/home" class="d-flex align-items-center mb-2 mb-lg-0 text-white text-decoration-none">
+          <a href="/" class="d-flex align-items-center mb-2 mb-lg-0 text-white text-decoration-none">
             <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52" fill="none">
               <path d="M8.66666 41.1667V10.8333C8.66666 9.68406 9.1232 8.58186 9.93586 7.7692C10.7485 6.95655 11.8507 6.5 13 6.5H42.0333C42.3781 6.5 42.7088 6.63696 42.9526 6.88076C43.1964 7.12456 43.3333 7.45522 43.3333 7.8V36.2137" stroke="white" stroke-width="2" stroke-linecap="round"/>
               <path d="M34.6667 19.0233C34.6664 20.327 34.1509 21.5778 33.2323 22.503C31.1177 24.635 29.0658 26.858 26.871 28.912C26.6259 29.1352 26.3045 29.2559 25.9731 29.249C25.6417 29.2422 25.3256 29.1083 25.09 28.8752L18.7677 22.5052C17.8486 21.5794 17.3329 20.3278 17.3329 19.0233C17.3329 17.7189 17.8486 16.4673 18.7677 15.5415C19.2262 15.0795 19.7717 14.7129 20.3726 14.4627C20.9736 14.2125 21.6181 14.0836 22.269 14.0836C22.9199 14.0836 23.5644 14.2125 24.1653 14.4627C24.7663 14.7129 25.3117 15.0795 25.7703 15.5415L26 15.7733L26.2297 15.5415C26.918 14.8457 27.7978 14.3705 28.7571 14.1763C29.7164 13.9822 30.7118 14.0779 31.6165 14.4513C32.5213 14.8246 33.2944 15.4588 33.8376 16.273C34.3808 17.0872 34.6694 18.0446 34.6667 19.0233Z" fill="url(#paint0_linear_80_109)" stroke="white" stroke-width="2" stroke-linejoin="round"/>
@@ -38,11 +38,11 @@
           </ul>
           <div class="text-end">
             <button type="button" class="btn btn-dark"><a href="/home">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-person-circle" viewBox="0 0 16 16">
-                <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0"></path>
-                <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"></path>
-                </svg></a>
-              </button>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-person-circle" viewBox="0 0 16 16">
+              <path d="M11 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0"></path>
+              <path fill-rule="evenodd" d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m8-7a7 7 0 0 0-5.468 11.37C3.242 11.226 4.805 10 8 10s4.757 1.225 5.468 2.37A7 7 0 0 0 8 1"></path>
+              </svg></a>
+            </button>
             <button type="button" class="btn btn-light color-c4"><a href="/recommender">
               <!-- <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-bookmark-heart" viewBox="0 0 16 16">
                 <path fill-rule="evenodd" d="M8 4.41c1.387-1.425 4.854 1.07 0 4.277C3.146 5.48 6.613 2.986 8 4.412z"></path>
@@ -57,64 +57,97 @@
       </div>
   </header>
 
-  <main class="d-flex justify-content-center p-3">
-
-  <div class="container mt-4">
-        <!-- Search bar with button -->
-        <div class="row mb-4 justify-content-center">
-            <div class="col-md-8 col-lg-6">
-                <div class="input-group">
-                    <input type="text" class="form-control" id="search" placeholder="Search for a book">
-                    <button class="btn btn-dark" id="">Search</button>
-                </div>
-            </div>
-        </div>
-      
+  <main class="d-flex justify-content-center p-3 min-vh-100">
+      <div class="container mt-4">
+          <!-- Search bar with button -->
+          <div class="row mb-4 justify-content-center">
+              <div class="col-md-8 col-lg-6">
+                  <div class="input-group">
+                      <input type="text" class="form-control" id="search" placeholder="Search for a book">
+                      <button class="btn btn-dark" id="">Search</button>
+                  </div>
+              </div>
+          </div>
         
-        <!-- Book Catalog -->
-        <div class="row">
-            <div class="col-md-4 mb-4">';
-            <div class="card">';
-            <img src="' . $row["image_url'" class="card-img-top" alt="Book Image">';
-              <div class="card-body">';
-              <h5 class="card-title">' . $row["title"] . '</h5>';
-              <p class="card-text">' . $row["author"] . '</p>';
-              <button class="btn btn-primary" id="btnone">Save</button>';
-              </div>';
-              </div>';
-              </div>';
-              <!-- if no books found then .... -->
-        </div>
-    </div>
-    
+          <div class="row">
+              <% if (books && books.length) { %>
+                  <% books.forEach(book => { %>
+                      <div class="col-md-4">
+                          <div class="card mb-4">
+                            <% if (book.imageUrl) { %>
+                              <img
+                                src="<%= book.imageUrl %>"
+                                class="card-img-top"
+                                alt="<%= book.title %>"
+                                style="height:240px; object-fit:contain;"
+                              >
+                            <% } else { %>
+                              <!-- якщо URL відсутній -->
+                              <svg class="bd-placeholder-img card-img-top" height="180" preserveAspectRatio="xMidYMid slice" role="img" width="100%" xmlns="http://www.w3.org/2000/svg">
+                                <title>No Image</title>
+                                <rect width="100%" height="100%" fill="#868e96"></rect>
+                                <text x="50%" y="50%" fill="#dee2e6" dy=".3em">No Image</text>
+                              </svg>
+                            <% } %>
+                              <div class="card-body">
+                                  <h5 class="card-title"><%= book.title %></h5>
+                                  <p class="card-text">Author: <%= book.author %></p>
+                                  <a href="#" class="btn btn-light">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-stars" viewBox="0 0 16 16">
+                                      <path d="M7.657 6.247c.11-.33.576-.33.686 0l.645 1.937a2.89 2.89 0 0 0 1.829 1.828l1.936.645c.33.11.33.576 0 .686l-1.937.645a2.89 2.89 0 0 0-1.828 1.829l-.645 1.936a.361.361 0 0 1-.686 0l-.645-1.937a2.89 2.89 0 0 0-1.828-1.828l-1.937-.645a.361.361 0 0 1 0-.686l1.937-.645a2.89 2.89 0 0 0 1.828-1.828zM3.794 1.148a.217.217 0 0 1 .412 0l.387 1.162c.173.518.579.924 1.097 1.097l1.162.387a.217.217 0 0 1 0 .412l-1.162.387A1.73 1.73 0 0 0 4.593 5.69l-.387 1.162a.217.217 0 0 1-.412 0L3.407 5.69A1.73 1.73 0 0 0 2.31 4.593l-1.162-.387a.217.217 0 0 1 0-.412l1.162-.387A1.73 1.73 0 0 0 3.407 2.31zM10.863.099a.145.145 0 0 1 .274 0l.258.774c.115.346.386.617.732.732l.774.258a.145.145 0 0 1 0 .274l-.774.258a1.16 1.16 0 0 0-.732.732l-.258.774a.145.145 0 0 1-.274 0l-.258-.774a1.16 1.16 0 0 0-.732-.732L9.1 2.137a.145.145 0 0 1 0-.274l.774-.258c.346-.115.617-.386.732-.732z"/>
+                                    </svg>
+                                    Save book</a>
+                              </div>
+                          </div>
+                      </div>
+                  <% }); %>
+              <% } else { %>
+                  <div class="col-12 text-center">
+                      <div class="alert alert-danger" role="alert">
+                          No books available at the moment.
+                      </div>
+                  </div>
+              <% } %>
+          </div>
+
+          <!-- Pagination -->
+          <nav aria-label="Page navigation">
+            <ul class="pagination justify-content-center">
+              <% if (currentPage > 1) { %>
+                <li class="page-item">
+                  <a class="page-link text-dark bg-light" href="/books?page=<%= currentPage - 1 %>">
+                    Previous
+                  </a>
+                </li>
+              <% } %>
+          
+              <% for (let i = 1; i <= totalPages; i++) { %>
+                <li class="page-item <%= i === currentPage ? 'active' : '' %>">
+                  <a
+                    class="page-link
+                           <%= i === currentPage ? 'bg-light text-dark' : 'bg-light text-dark' %>"
+                    href="/books?page=<%= i %>">
+                    <%= i %>
+                  </a>
+                </li>
+              <% } %>
+          
+              <% if (currentPage < totalPages) { %>
+                <li class="page-item">
+                  <a class="page-link text-dark bg-light" href="/books?page=<%= currentPage + 1 %>">
+                    Next
+                  </a>
+                </li>
+              <% } %>
+            </ul>
+          </nav>          
+      </div>
   </main>
 
-  <footer class="py-3 text-bg-dark">
-    <div class="container d-flex flex-wrap justify-content-between align-items-center col-10 my-4 border-top ">
-      <p class="col-md-4 mb-0 text-light">© 2025 Kateryna Palka</p>
-
-    <a href="#" class="col-md-4 d-flex align-items-center justify-content-center mb-3 mb-md-0 me-md-auto link-body-emphasis text-decoration-none">
-      <svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 52 52" fill="none">
-        <path d="M8.66666 41.1667V10.8333C8.66666 9.68406 9.1232 8.58186 9.93586 7.7692C10.7485 6.95655 11.8507 6.5 13 6.5H42.0333C42.3781 6.5 42.7088 6.63696 42.9526 6.88076C43.1964 7.12456 43.3333 7.45522 43.3333 7.8V36.2137" stroke="white" stroke-width="2" stroke-linecap="round"/>
-        <path d="M34.6667 19.0233C34.6664 20.327 34.1509 21.5778 33.2323 22.503C31.1177 24.635 29.0658 26.858 26.871 28.912C26.6259 29.1352 26.3045 29.2559 25.9731 29.249C25.6417 29.2422 25.3256 29.1083 25.09 28.8752L18.7677 22.5052C17.8486 21.5794 17.3329 20.3278 17.3329 19.0233C17.3329 17.7189 17.8486 16.4673 18.7677 15.5415C19.2262 15.0795 19.7717 14.7129 20.3726 14.4627C20.9736 14.2125 21.6181 14.0836 22.269 14.0836C22.9199 14.0836 23.5644 14.2125 24.1653 14.4627C24.7663 14.7129 25.3117 15.0795 25.7703 15.5415L26 15.7733L26.2297 15.5415C26.918 14.8457 27.7978 14.3705 28.7571 14.1763C29.7164 13.9822 30.7118 14.0779 31.6165 14.4513C32.5213 14.8246 33.2944 15.4588 33.8376 16.273C34.3808 17.0872 34.6694 18.0446 34.6667 19.0233Z" fill="url(#paint0_linear_80_109)" stroke="white" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M13 36.8333H43.3333M13 45.5H43.3333" stroke="white" stroke-width="2" stroke-linecap="round"/>
-        <path d="M13 45.5C11.8507 45.5 10.7485 45.0435 9.93586 44.2308C9.1232 43.4181 8.66666 42.3159 8.66666 41.1667C8.66666 40.0174 9.1232 38.9152 9.93586 38.1025C10.7485 37.2899 11.8507 36.8333 13 36.8333" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <defs>
-          <linearGradient id="paint0_linear_80_109" x1="35" y1="32" x2="2.5" y2="-3.49997" gradientUnits="userSpaceOnUse">
-            <stop offset="0.0937294" stop-color="#FF3F3F"/>
-            <stop offset="0.684149" stop-color="white"/>
-          </linearGradient>
-        </defs>
-      </svg>
-    </a>
-
-    <ul class="nav col-md-4 justify-content-end">
-      <li class="nav-item "><a href="#" class="nav-link px-2 text-light">Home</a></li>
-      <li class="nav-item"><a href="#" class="nav-link px-2 text-light">Sign-up</a></li>
-      <li class="nav-item"><a href="#" class="nav-link px-2 text-light">Books</a></li>
-      <li class="nav-item"><a href="#" class="nav-link px-2 text-light">FAQs</a></li>
-      <li class="nav-item"><a href="#" class="nav-link px-2 text-light">About</a></li>
-    </ul>
+  <footer class="py-3 text-bg-dark mt-auto">
+    <div class="container d-flex flex-wrap justify-content-between align-items-center col-10 my-4 border-top">
+      <p class="mb-0 text-light">© 2025 Kateryna Palka</p>
+      <!-- Footer links omitted -->
     </div>
   </footer>
 
