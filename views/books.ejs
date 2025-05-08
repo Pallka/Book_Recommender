@@ -60,14 +60,27 @@
   <main class="d-flex justify-content-center p-3 min-vh-100">
       <div class="container mt-4">
           <!-- Search bar with button -->
-          <div class="row mb-4 justify-content-center">
-              <div class="col-md-8 col-lg-6">
-                  <div class="input-group">
-                      <input type="text" class="form-control" id="search" placeholder="Search for a book">
-                      <button class="btn btn-dark" id="">Search</button>
-                  </div>
+        <div class="row mb-4 justify-content-center">
+          <div class="col-md-8 col-lg-6">
+            <form method="GET" action="/books" style="background: transparent; padding: 0; border: none; box-shadow: none; max-width: none; width: auto;">
+              <div class="input-group">
+                <input
+                  type="text"
+                  name="search"
+                  class="form-control"
+                  id="search"
+                  placeholder="Search for a book"
+                  value="<%= typeof searchTerm !== 'undefined' ? searchTerm : '' %>"
+                >
+                <button class="btn btn-dark" type="submit">Search</button>
               </div>
+            </form>
           </div>
+        </div>
+
+      <% if (typeof searchTerm !== 'undefined' && searchTerm) { %>
+        <p class="text-center">Found <strong><%= totalBooks %></strong> result(s) for "<%= searchTerm %>"</p>
+      <% } %>
         
           <div class="row">
               <% if (books && books.length) { %>
