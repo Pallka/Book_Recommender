@@ -11,7 +11,7 @@ const session = require("express-session");
 const methodOverride = require("method-override");
 const mongoose = require("mongoose");
 const initializePassport = require("./passport-config");
-const User = require("./config");
+const { User, Book } = require("./config");
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/book-recommender', {
@@ -113,9 +113,31 @@ app.delete("/logout", (req, res, next) => {
 
 app.get("/about", (req, res) => res.render("about"));
 app.get("/recommender", (req, res) => res.render("recommender"));
-app.get("/books", (req, res) => res.render("books"));
 app.get("/register_seccess", (req, res) => res.render("register_seccess"));
 app.get("/error", (req, res) => res.render("error"));
+
+app.get('/books', async (req, res) => {
+    const page = parseInt(req.query.page) || 1; // поточна сторінка
+    const limit = 9; // кількість книг на сторінці
+    const skip = (page - 1) * limit;
+
+    try {
+        const totalBooks = await Book.countDocuments();
+        const totalPages = Math.ceil(totalBooks / limit);
+
+        const books = await Book.find().skip(skip).limit(limit);
+
+        res.render('books', {
+            books,
+            currentPage: page,
+            totalPages
+        });
+    } catch (error) {
+        console.error('Error fetching books:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
 
 function checkAuthenticated(req, res, next) {
     if (req.isAuthenticated()) return next();
