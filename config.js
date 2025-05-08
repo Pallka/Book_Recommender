@@ -34,6 +34,11 @@ const LoginSchema = new mongoose.Schema({
 
 // Define the Book schema
 const BookSchema = new mongoose.Schema({
+    isbn13: {
+        type: String,
+        unique: true,
+        required: true
+    },
     title: {
         type: String,
         required: true
@@ -55,7 +60,19 @@ const BookSchema = new mongoose.Schema({
         default: true
     },
     published_year: {
-        type: String,
+        type: Number,
+        default: true
+    },
+    average_rating: {
+        type: Number,
+        default: true
+    },
+    num_pages: {
+        type: Number,
+        default: true
+    },
+    ratings_count: {
+        type: Number,
         default: true
     },
 }, {
