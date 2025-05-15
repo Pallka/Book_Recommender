@@ -1,5 +1,6 @@
 const { name } = require("ejs"); 
 const mongoose = require("mongoose");
+const { Schema, model, Types } = mongoose;
 
 // Connecting to MongoDB with explicit database name
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/book-recommender', {
@@ -26,7 +27,11 @@ const LoginSchema = new mongoose.Schema({
     password: {
         type: String,
         required: true 
-    }
+    },
+    savedBooks: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Book'
+    }]
 }, {
     collection: 'users',
     timestamps: true
