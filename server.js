@@ -32,6 +32,7 @@ app.set("view engine", "ejs");
 app.set("views", "./views");
 app.use(express.static("views"));
 app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 app.use(flash());
 app.use(session({
     secret: process.env.SECRET_KEY || "secret",
@@ -100,8 +101,24 @@ app.post("/register", checkNotAuthenticated, async (req, res) => {
     }
 });
 
-app.get("/home", checkAuthenticated, (req, res) => {
-    res.render("home", { name: req.user.name });
+app.get("/home", checkAuthenticated, async (req, res) => {
+    try {
+        // Find user and populate their saved books
+        const user = await User.findById(req.user._id).populate('savedBooks');
+        
+        // Pass both user name and saved books to the template
+        res.render("home", { 
+            name: user.name,
+            books: user.savedBooks || []
+        });
+    } catch (error) {
+        console.error('Error fetching saved books:', error);
+        res.render("home", { 
+            name: req.user.name,
+            books: [],
+            error: 'Failed to load saved books'
+        });
+    }
 });
 
 app.delete("/logout", (req, res, next) => {
@@ -117,52 +134,134 @@ app.get("/register_seccess", (req, res) => res.render("register_seccess"));
 app.get("/error", (req, res) => res.render("error"));
 
 app.get('/books', async (req, res) => {
-    const page       = parseInt(req.query.page)  || 1;
-    const limit      =  12;
-    const skip       = (page - 1) * limit;
+    const page = parseInt(req.query.page) || 1;
+    const limit = 12;
+    const skip = (page - 1) * limit;
     const searchTerm = (req.query.search || '').trim();
   
-    // пошук
-    const filter = searchTerm
-      ? {
-          $or: [
-            { title:  new RegExp(searchTerm, 'i') },
-            { author: new RegExp(searchTerm, 'i') }
-          ]
-        }
-      : {};
-  
     try {
-      const totalBooks = await Book.countDocuments(filter);
-      const totalPages = Math.ceil(totalBooks / limit);
-      const books      = await Book
-                               .find(filter)
-                               .skip(skip)
-                               .limit(limit);
+        // Create search filter
+        const filter = searchTerm ? {
+            $or: [
+                { title: new RegExp(searchTerm, 'i') },
+                { authors: new RegExp(searchTerm, 'i') }
+            ]
+        } : {};
   
-      return res.render('books', {
-        books,
-        currentPage: page,
-        totalPages,
-        totalBooks,
-        searchTerm
-      });
+        // Get total books count and books for current page
+        const totalBooks = await Book.countDocuments(filter);
+        const totalPages = Math.ceil(totalBooks / limit);
+        const books = await Book.find(filter).skip(skip).limit(limit);
+
+        // If user is authenticated, get their saved books to mark which ones are already saved
+        let savedBookIds = [];
+        if (req.isAuthenticated()) {
+            const user = await User.findById(req.user._id);
+            savedBookIds = user.savedBooks.map(id => id.toString());
+        }
+  
+        return res.render('books', {
+            books,
+            currentPage: page,
+            totalPages,
+            totalBooks,
+            searchTerm,
+            savedBookIds
+        });
     } catch (err) {
-      console.error('Books fetch error:', err);
-      return res.status(500).send('Internal Server Error');
+        console.error('Books fetch error:', err);
+        return res.status(500).send('Internal Server Error');
     }
 });
 
 app.get('/books/:id', async (req, res) => {
     try {
-      const book = await Book.findById(req.params.id);
-      if (!book) return res.status(404).send('Book not found');
-      res.render('book-details', { book });
-    } catch (err) {
-      res.status(500).send('Server error');
-    }
-  });
+        const book = await Book.findById(req.params.id);
+        if (!book) {
+            return res.status(404).send('Book not found');
+        }
 
+        // Check if book is saved if user is authenticated
+        let isSaved = false;
+        if (req.isAuthenticated()) {
+            const user = await User.findById(req.user._id);
+            isSaved = user.savedBooks.includes(book._id);
+        }
+
+        res.render('book-details', { book, isSaved });
+    } catch (err) {
+        console.error('Error fetching book details:', err);
+        res.status(500).send('Server error');
+    }
+});
+
+app.post('/save-book', checkAuthenticated, async (req, res) => {
+    const { bookId } = req.body;
+
+    try {
+        // Find the book first
+        const book = await Book.findById(bookId);
+        if (!book) {
+            return res.status(404).json({ message: 'Book not found' });
+        }
+
+        // Find the user
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Check if book is already saved
+        if (user.savedBooks.includes(bookId)) {
+            return res.status(200).json({ message: 'Book already saved' });
+        }
+
+        // Add book to saved books
+        user.savedBooks.push(bookId);
+        await user.save();
+
+        console.log(`Book ${bookId} saved for user ${user._id}`);
+        res.json({ message: 'Book saved successfully' });
+    } catch (err) {
+        console.error('Error saving book:', err);
+        res.status(500).json({ message: 'Error saving book' });
+    }
+});
+
+app.get('/user-saved-books', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const user = await User.findById(userId).populate('savedBooks');
+    if (!user) return res.status(404).send('Користувача не знайдено');
+
+    res.render('savedBooks', { user, books: user.savedBooks });
+  } catch (err) {
+    res.status(500).send('Помилка при завантаженні книг');
+  }
+});
+
+app.delete('/delete-book/:bookId', checkAuthenticated, async (req, res) => {
+    const { bookId } = req.params;
+
+    try {
+        // Find the user
+        const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Remove book from saved books
+        user.savedBooks = user.savedBooks.filter(id => id.toString() !== bookId);
+        await user.save();
+
+        console.log(`Book ${bookId} removed from user ${user._id}'s saved books`);
+        res.json({ message: 'Book removed successfully' });
+    } catch (err) {
+        console.error('Error removing book:', err);
+        res.status(500).json({ message: 'Error removing book' });
+    }
+});
 
 function checkAuthenticated(req, res, next) {
     if (req.isAuthenticated()) return next();
