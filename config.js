@@ -44,6 +44,11 @@ const BookSchema = new mongoose.Schema({
         unique: true,
         required: true
     },
+    bookIndex: {
+        type: Number,
+        unique: true,
+        sparse: true 
+    },
     title: {
         type: String,
         required: true
@@ -85,11 +90,9 @@ const BookSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Create models
 const User = mongoose.model("users", LoginSchema);
 const Book = mongoose.model('Book', BookSchema);
 
-// Verify collections exist
 mongoose.connection.on('connected', async () => {
     try {
         const collections = await mongoose.connection.db.listCollections().toArray();
@@ -112,7 +115,6 @@ mongoose.connection.on('connected', async () => {
     }
 });
 
-// Export both models
 module.exports = {
     User,
     Book
