@@ -12,6 +12,7 @@ const methodOverride = require("method-override");
 const mongoose = require("mongoose");
 const initializePassport = require("./passport-config");
 const { User, Book } = require("./config");
+const modelHandler = require('./model/modelHandler');
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/book-recommender', {
@@ -19,6 +20,11 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/book-recomm
 })
     .then(() => console.log("✅ MongoDB connected to book-recommender database"))
     .catch(err => console.error("❌ MongoDB connection error:", err));
+
+// Add this after MongoDB connection
+modelHandler.loadModel()
+    .then(() => console.log('✅ Model initialized successfully'))
+    .catch(err => console.error('❌ Model initialization error:', err));
 
 initializePassport(
     passport,
@@ -129,7 +135,6 @@ app.delete("/logout", (req, res, next) => {
 });
 
 app.get("/about", (req, res) => res.render("about"));
-app.get("/recommender", (req, res) => res.render("recommender"));
 app.get("/register_seccess", (req, res) => res.render("register_seccess"));
 app.get("/error", (req, res) => res.render("error"));
 
@@ -148,12 +153,10 @@ app.get('/books', async (req, res) => {
             ]
         } : {};
   
-        // Get total books count and books for current page
         const totalBooks = await Book.countDocuments(filter);
         const totalPages = Math.ceil(totalBooks / limit);
         const books = await Book.find(filter).skip(skip).limit(limit);
 
-        // If user is authenticated, get their saved books to mark which ones are already saved
         let savedBookIds = [];
         if (req.isAuthenticated()) {
             const user = await User.findById(req.user._id);
@@ -181,7 +184,6 @@ app.get('/books/:id', async (req, res) => {
             return res.status(404).send('Book not found');
         }
 
-        // Check if book is saved if user is authenticated
         let isSaved = false;
         if (req.isAuthenticated()) {
             const user = await User.findById(req.user._id);
@@ -199,24 +201,20 @@ app.post('/save-book', checkAuthenticated, async (req, res) => {
     const { bookId } = req.body;
 
     try {
-        // Find the book first
         const book = await Book.findById(bookId);
         if (!book) {
             return res.status(404).json({ message: 'Book not found' });
         }
 
-        // Find the user
         const user = await User.findById(req.user._id);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Check if book is already saved
         if (user.savedBooks.includes(bookId)) {
             return res.status(200).json({ message: 'Book already saved' });
         }
 
-        // Add book to saved books
         user.savedBooks.push(bookId);
         await user.save();
 
@@ -245,13 +243,11 @@ app.delete('/delete-book/:bookId', checkAuthenticated, async (req, res) => {
     const { bookId } = req.params;
 
     try {
-        // Find the user
         const user = await User.findById(req.user._id);
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Remove book from saved books
         user.savedBooks = user.savedBooks.filter(id => id.toString() !== bookId);
         await user.save();
 
@@ -260,6 +256,159 @@ app.delete('/delete-book/:bookId', checkAuthenticated, async (req, res) => {
     } catch (err) {
         console.error('Error removing book:', err);
         res.status(500).json({ message: 'Error removing book' });
+    }
+});
+
+app.get('/recommendations', checkAuthenticated, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = 8;
+        const skip = (page - 1) * limit;
+
+        const user = await User.findById(req.user._id).populate('savedBooks');
+        let books = [];
+        let totalBooks = 0;
+        let message = '';
+        let savedBookIds = [];
+
+        if (user && user.savedBooks) {
+            savedBookIds = user.savedBooks.map(book => book._id.toString());
+            console.log('User has saved books:', user.savedBooks.length);
+        }
+
+        if (!user || !user.savedBooks || user.savedBooks.length === 0) {
+            console.log('No saved books, getting random recommendations');
+            books = await Book.aggregate([
+                { $sample: { size: limit } }
+            ]);
+            books = await Book.populate(books, { path: '_id' });
+            totalBooks = await Book.countDocuments();
+            message = "Random recommendations (since you don't have any saved books yet)";
+        } else {
+            try {
+                console.log('Getting personalized recommendations');
+                const userProfile = modelHandler.preprocessUserProfile(user.savedBooks);
+                console.log('User profile created');
+                
+                const recommendedIndices = await modelHandler.getRecommendations(userProfile);
+                console.log('Recommended indices:', recommendedIndices);
+
+                books = await Book.find({
+                    bookIndex: { $in: recommendedIndices },
+                    _id: { $nin: savedBookIds } // Exclude already saved books
+                })
+                .skip(skip)
+                .limit(limit)
+                .sort({ title: 1 });
+
+                console.log('Found books by bookIndex:', books.length);
+
+                if (books.length < limit) {
+                    console.log('Not enough books found by index, adding category-based recommendations');
+                    const categoryBooks = await Book.find({
+                        _id: { $nin: [...savedBookIds, ...books.map(b => b._id)] },
+                        categories: { 
+                            $in: user.savedBooks.flatMap(book => 
+                                book.categories ? 
+                                    (Array.isArray(book.categories) ? book.categories : book.categories.split(',').map(c => c.trim())) 
+                                    : []
+                            )
+                        }
+                    })
+                    .limit(limit - books.length)
+                    .sort({ average_rating: -1 });
+
+                    books = [...books, ...categoryBooks];
+                    console.log('Added category-based books:', categoryBooks.length);
+                }
+
+                if (books.length < limit) {
+                    console.log('Still need more books, adding random recommendations');
+                    const randomBooks = await Book.aggregate([
+                        { 
+                            $match: { 
+                                _id: { 
+                                    $nin: [...savedBookIds, ...books.map(b => b._id)]
+                                }
+                            }
+                        },
+                        { $sample: { size: limit - books.length } }
+                    ]);
+                    const populatedRandomBooks = await Book.populate(randomBooks, { path: '_id' });
+                    books = [...books, ...populatedRandomBooks];
+                }
+
+                totalBooks = await Book.countDocuments({ _id: { $nin: savedBookIds } });
+                message = books.length === limit ? 
+                    "Personalized recommendations based on your saved books" :
+                    "Mixed recommendations based on your preferences and popular books";
+
+            } catch (modelError) {
+                console.error('Error getting recommendations from model:', modelError);
+                books = await Book.aggregate([
+                    { $match: { _id: { $nin: savedBookIds } } },
+                    { $sample: { size: limit } }
+                ]);
+                books = await Book.populate(books, { path: '_id' });
+                totalBooks = await Book.countDocuments();
+                message = "Random recommendations (recommendation system error)";
+            }
+        }
+
+        const totalPages = Math.ceil(totalBooks / limit);
+
+        console.log('Final books count:', books.length);
+        console.log('Sample book data:', books[0]);
+
+        res.render('recommendations', {
+            books,
+            currentPage: page,
+            totalPages,
+            totalBooks,
+            savedBookIds,
+            message,
+            user: {
+                name: user.name,
+                id: user._id
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in recommendations route:', error);
+        res.status(500).render('error', {
+            message: 'Error getting recommendations'
+        });
+    }
+});
+
+app.get('/api/recommendations', checkAuthenticated, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).populate('savedBooks');
+        
+        if (!user || !user.savedBooks || user.savedBooks.length === 0) {
+            const randomBooks = await Book.aggregate([{ $sample: { size: 5 } }]);
+            return res.json({
+                books: randomBooks,
+                type: 'random'
+            });
+        }
+
+        const userProfile = modelHandler.preprocessUserProfile(user.savedBooks);
+        const recommendedIndices = await modelHandler.getRecommendations(userProfile);
+        const recommendedBooks = await Book.find({
+            bookIndex: { $in: recommendedIndices }
+        });
+
+        res.json({
+            books: recommendedBooks,
+            type: 'personalized'
+        });
+
+    } catch (error) {
+        console.error('Error getting recommendations:', error);
+        res.status(500).json({ 
+            error: 'Failed to generate recommendations'
+        });
     }
 });
 
