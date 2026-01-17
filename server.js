@@ -135,6 +135,7 @@ app.delete("/logout", (req, res, next) => {
 });
 
 app.get("/about", (req, res) => res.render("about"));
+app.get("/faqs", (req, res) => res.render("faqs"));
 app.get("/register_seccess", (req, res) => res.render("register_seccess"));
 app.get("/error", (req, res) => res.render("error"));
 
