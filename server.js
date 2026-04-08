@@ -11,17 +11,16 @@ const session = require("express-session");
 const methodOverride = require("method-override");
 const mongoose = require("mongoose");
 const initializePassport = require("./passport-config");
-const { User, Book } = require("./config");
+const { User, Book, SearchHistory, AiInteraction } = require("./config");
 const modelHandler = require('./model/modelHandler');
+const { syncBooks } = require("./scripts/syncBooks");
 
-// Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/book-recommender', {
-    dbName: 'book-recommender' // Explicitly set database name
+    dbName: 'book-recommender'
 })
     .then(() => console.log("✅ MongoDB connected to book-recommender database"))
     .catch(err => console.error("❌ MongoDB connection error:", err));
 
-// Add this after MongoDB connection
 modelHandler.loadModel()
     .then(() => console.log('✅ Model initialized successfully'))
     .catch(err => console.error('❌ Model initialization error:', err));
@@ -32,11 +31,14 @@ initializePassport(
     async id => await User.findById(id)
 );
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const AI_SERVICE_URL = (process.env.AI_SERVICE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || "";
 
 app.set("view engine", "ejs");
 app.set("views", "./views");
 app.use(express.static("views"));
+app.use("/sample_ai_agent", express.static("sample_ai_agent"));
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 app.use(flash());
@@ -109,10 +111,7 @@ app.post("/register", checkNotAuthenticated, async (req, res) => {
 
 app.get("/home", checkAuthenticated, async (req, res) => {
     try {
-        // Find user and populate their saved books
         const user = await User.findById(req.user._id).populate('savedBooks');
-        
-        // Pass both user name and saved books to the template
         res.render("home", { 
             name: user.name,
             books: user.savedBooks || []
@@ -139,6 +138,359 @@ app.get("/faqs", (req, res) => res.render("faqs"));
 app.get("/register_seccess", (req, res) => res.render("register_seccess"));
 app.get("/error", (req, res) => res.render("error"));
 
+// Sync Google Books -> MongoDB + Qdrant
+app.post("/api/sync-books", async (req, res) => {
+    if (!internalKeyOk(req)) {
+        return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+    try {
+        const result = await syncBooks();
+        return res.json({
+            success: true,
+            message: "Books synchronized successfully",
+            ...result
+        });
+    } catch (error) {
+        console.error("[/api/sync-books] Failed:", error.message);
+        return res.status(500).json({
+            success: false,
+            error: "Failed to sync books",
+            details: error.message
+        });
+    }
+});
+
+/** Allows request if INTERNAL_API_KEY is unset; else requires header or query match. */
+function internalKeyOk(req) {
+    if (!INTERNAL_API_KEY) return true;
+    const k = req.headers["x-internal-key"] || req.query.internal_key;
+    return k === INTERNAL_API_KEY;
+}
+
+/** POST /api/ai/chat: try Python service (AI_SERVICE_URL), then LLM chain (Groq/OpenAI/Ollama), else keyword replies. */
+app.post("/api/ai/chat", async (req, res) => {
+    try {
+        const message = (req.body && req.body.message ? String(req.body.message) : "").trim();
+        const history = Array.isArray(req.body && req.body.history ? req.body.history : [])
+            ? req.body.history.slice(-20)
+            : [];
+
+        if (!message) {
+            return res.status(400).json({ error: "Message is required" });
+        }
+
+        const userId = typeof req.isAuthenticated === "function" && req.isAuthenticated() && req.user && req.user._id
+            ? String(req.user._id)
+            : (req.body.user_id ? String(req.body.user_id) : null);
+
+        try {
+            const chatUrl = `${AI_SERVICE_URL}/chat`;
+            const ac = new AbortController();
+            const t = setTimeout(() => ac.abort(), 120000);
+            const pyRes = await fetch(chatUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user_input: message,
+                    user_id: userId,
+                    history: history.map(m => ({ role: m.role, content: m.content }))
+                }),
+                signal: ac.signal
+            });
+            clearTimeout(t);
+            if (pyRes.ok) {
+                const data = await pyRes.json();
+                const reply = typeof data.reply === "string" ? data.reply : (data.response || "");
+                const explanation = data.explanation;
+                const semantic_hits = data.semantic_hits;
+                const ml_books = data.ml_books;
+                if (reply) {
+                    try {
+                        await SearchHistory.create({ user_id: userId || undefined, query: message });
+                        await AiInteraction.create({
+                            user_id: userId || undefined,
+                            query: message,
+                            response: reply,
+                            meta: { explanation, semantic_hits, ml_books, source: "python" }
+                        });
+                    } catch (e) { console.warn("AiInteraction save:", e.message); }
+                    return res.json({
+                        reply,
+                        explanation,
+                        recommendations: { semantic: semantic_hits, ml: ml_books }
+                    });
+                }
+            } else {
+                console.warn("AI service returned", pyRes.status, await pyRes.text().catch(() => ""));
+            }
+        } catch (e) {
+            console.warn("AI service unavailable, fallback:", e.message);
+        }
+
+        const systemPrompt =
+            "You are a helpful assistant for a Book Recommender web app. " +
+            "Keep responses concise. Help users find books, genres, and explain how to use the site. " +
+            "If you don't know something, ask a short clarifying question. " +
+            "Format every reply in Markdown: use a blank line between paragraphs; for lists put each item on its own line starting with \"- \" (hyphen and space). " +
+            "Do not run list items together on one line with asterisks.";
+
+        let llmOut = null;
+        try {
+            llmOut = await tryLlmChat({ systemPrompt, history, message });
+        } catch (e) {
+            console.warn("LLM fallback chain error:", e.message);
+        }
+        if (llmOut && llmOut.text) {
+            try {
+                await AiInteraction.create({
+                    user_id: userId || undefined,
+                    query: message,
+                    response: llmOut.text,
+                    meta: { source: llmOut.source || "llm" }
+                });
+            } catch (e) { /* ignore */ }
+            return res.json({ reply: llmOut.text });
+        }
+
+        const lower = message.toLowerCase();
+        let reply =
+            "I can help with book recommendations. Tell me: a genre you like, an author you enjoy, or a book you loved recently.";
+        if (lower.includes("recommend") || lower.includes("suggest")) {
+            reply =
+                "Sure. What genre/mood do you want (e.g. fantasy, romance, thriller, nonfiction), and do you prefer short or long books?";
+        } else if (lower.includes("how") && (lower.includes("use") || lower.includes("app"))) {
+            reply =
+                "Use the Books page to browse/search. Open a book to see details. If you’re logged in, save books to build your profile, then check Recommendations.";
+        } else if (lower.includes("login") || lower.includes("sign in")) {
+            reply = "Go to Log in, enter your email + password. If you don’t have an account yet, use Sign-up.";
+        } else if (lower.includes("register") || lower.includes("sign up")) {
+            reply = "Open Sign-up, fill name/email/password, then submit. After that you can log in and start saving books.";
+        }
+
+        return res.json({ reply });
+    } catch (err) {
+        console.error("AI chat error:", err);
+        return res.status(500).json({ error: "AI chat failed" });
+    }
+});
+
+/** Books list for Python / Qdrant indexing (protected when INTERNAL_API_KEY is set). */
+app.get("/api/internal/books", async (req, res) => {
+    if (!internalKeyOk(req)) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    const limit = Math.min(parseInt(req.query.limit, 10) || 2000, 10000);
+    try {
+        const books = await Book.find({}).limit(limit).lean();
+        const out = books.map(b => ({
+            id: String(b._id),
+            title: b.title,
+            description: typeof b.description === "string" ? b.description : "",
+            categories: typeof b.categories === "string" ? b.categories : "",
+            genre: typeof b.categories === "string" ? b.categories : "",
+            authors: b.authors
+        }));
+        return res.json({ books: out, count: out.length });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ error: "Failed to list books" });
+    }
+});
+
+/**
+ * JSON ML recommendations for a seed title (internal or same key as /api/sync-books).
+ * Resolves one book by case-insensitive title regex, runs TF model, returns up to 20 books by bookIndex.
+ */
+async function getMlRecommendationsByTitle(req, res) {
+    if (!internalKeyOk(req)) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    const title = String(req.query.title || "").trim();
+    if (!title) {
+        return res.status(400).json({ error: "title is required" });
+    }
+    try {
+        if (!modelHandler.initialized) {
+            await modelHandler.loadModel();
+        }
+        const esc = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const book = await Book.findOne({ title: new RegExp(esc, "i") });
+        if (!book) {
+            return res.json({ books: [], type: "not_found", message: "No book matching title" });
+        }
+        const profile = modelHandler.preprocessUserProfile([book]);
+        const recommendedIndices = await modelHandler.getRecommendations(profile);
+        const books = await Book.find({ bookIndex: { $in: recommendedIndices } }).limit(20).lean();
+        return res.json({
+            books,
+            type: "by_title",
+            seed: { title: book.title, id: String(book._id) }
+        });
+    } catch (e) {
+        console.error("getMlRecommendationsByTitle:", e);
+        return res.status(500).json({ error: "ML recommendations failed" });
+    }
+}
+
+/** OPENAI_API_KEY from env, trimmed; strips wrapping quotes from .env mistakes. */
+function openaiApiKey() {
+    const raw = process.env.OPENAI_API_KEY;
+    if (!raw) return "";
+    return String(raw).trim().replace(/^['"]|['"]$/g, "");
+}
+
+/** GROQ_API_KEY from env, trimmed (same rules as openaiApiKey). */
+function groqApiKey() {
+    const raw = process.env.GROQ_API_KEY;
+    if (!raw) return "";
+    return String(raw).trim().replace(/^['"]|['"]$/g, "");
+}
+
+/** Builds OpenAI-style messages[]: system + last user/assistant turns + current user message. */
+function buildLlmMessages(systemPrompt, history, message) {
+    return [
+        { role: "system", content: systemPrompt },
+        ...history
+            .filter(m => m && typeof m === "object" && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+            .map(m => ({ role: m.role, content: m.content })),
+        { role: "user", content: message }
+    ];
+}
+
+/**
+ * POST {baseUrl}/chat/completions (OpenAI-compatible API).
+ * @param {{ baseUrl: string, apiKey: string, model: string, messages: object[] }} opts — baseUrl ends with /v1; apiKey may be "" for Ollama.
+ * @returns {Promise<string>} Assistant message text.
+ * @throws If HTTP non-OK or empty choices[0].message.content.
+ */
+async function fetchOpenAiCompatibleChat({ baseUrl, apiKey, model, messages }) {
+    const root = String(baseUrl || "").replace(/\/$/, "");
+    const url = `${root}/chat/completions`;
+    const headers = { "Content-Type": "application/json" };
+    const key = apiKey && String(apiKey).trim();
+    if (key) headers["Authorization"] = `Bearer ${key}`;
+
+    const resp = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.4
+        })
+    });
+
+    if (!resp.ok) {
+        const text = await resp.text().catch(() => "");
+        throw new Error(`LLM ${resp.status}: ${text}`);
+    }
+
+    const json = await resp.json();
+    const content = json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+    if (!content) throw new Error("LLM returned empty response");
+    return String(content).trim();
+}
+
+/**
+ * Calls one or more chat providers per LLM_PROVIDER (env).
+ * auto: Groq (if GROQ_API_KEY) → OpenAI (if OPENAI_API_KEY) → Ollama (local, no key).
+ * Stops on first non-empty reply.
+ * @returns {Promise<{ text: string, source: string }|null>} null if no providers were tried (e.g. LLM_PROVIDER=groq but no key) or none returned text without throwing.
+ * @throws The last error from the chain if every attempt threw (caller logs and falls back to keyword replies only when this is caught).
+ */
+async function tryLlmChat({ systemPrompt, history, message }) {
+    const messages = buildLlmMessages(systemPrompt, history, message);
+    const mode = (process.env.LLM_PROVIDER || "auto").toLowerCase().trim();
+
+    const groqModel = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+    const ollamaBase = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434/v1").replace(/\/$/, "");
+    const ollamaModel = process.env.OLLAMA_MODEL || "llama3.2";
+
+    /** @type {Array<{ name: string, run: () => Promise<string> }>} */
+    const attempts = [];
+
+    if (mode === "groq") {
+        if (groqApiKey()) {
+            attempts.push({
+                name: "groq",
+                run: () => fetchOpenAiCompatibleChat({
+                    baseUrl: "https://api.groq.com/openai/v1",
+                    apiKey: groqApiKey(),
+                    model: groqModel,
+                    messages
+                })
+            });
+        }
+    } else if (mode === "openai") {
+        if (openaiApiKey()) {
+            attempts.push({
+                name: "openai",
+                run: () => fetchOpenAiCompatibleChat({
+                    baseUrl: "https://api.openai.com/v1",
+                    apiKey: openaiApiKey(),
+                    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+                    messages
+                })
+            });
+        }
+    } else if (mode === "ollama") {
+        attempts.push({
+            name: "ollama",
+            run: () => fetchOpenAiCompatibleChat({
+                baseUrl: ollamaBase,
+                apiKey: "",
+                model: ollamaModel,
+                messages
+            })
+        });
+    } else {
+        if (groqApiKey()) {
+            attempts.push({
+                name: "groq",
+                run: () => fetchOpenAiCompatibleChat({
+                    baseUrl: "https://api.groq.com/openai/v1",
+                    apiKey: groqApiKey(),
+                    model: groqModel,
+                    messages
+                })
+            });
+        }
+        if (openaiApiKey()) {
+            attempts.push({
+                name: "openai",
+                run: () => fetchOpenAiCompatibleChat({
+                    baseUrl: "https://api.openai.com/v1",
+                    apiKey: openaiApiKey(),
+                    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+                    messages
+                })
+            });
+        }
+        attempts.push({
+            name: "ollama",
+            run: () => fetchOpenAiCompatibleChat({
+                baseUrl: ollamaBase,
+                apiKey: "",
+                model: ollamaModel,
+                messages
+            })
+        });
+    }
+
+    let lastErr = null;
+    for (const { name, run } of attempts) {
+        try {
+            const text = await run();
+            if (text) return { text, source: name };
+        } catch (e) {
+            lastErr = e;
+            console.warn(`LLM ${name}:`, e.message);
+        }
+    }
+    if (lastErr) throw lastErr;
+    return null;
+}
+
 app.get('/books', async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = 12;
@@ -146,7 +498,6 @@ app.get('/books', async (req, res) => {
     const searchTerm = (req.query.search || '').trim();
   
     try {
-        // Create search filter
         const filter = searchTerm ? {
             $or: [
                 { title: new RegExp(searchTerm, 'i') },
@@ -296,7 +647,7 @@ app.get('/recommendations', checkAuthenticated, async (req, res) => {
 
                 books = await Book.find({
                     bookIndex: { $in: recommendedIndices },
-                    _id: { $nin: savedBookIds } // Exclude already saved books
+                    _id: { $nin: savedBookIds }
                 })
                 .skip(skip)
                 .limit(limit)
@@ -382,7 +733,15 @@ app.get('/recommendations', checkAuthenticated, async (req, res) => {
     }
 });
 
-app.get('/api/recommendations', checkAuthenticated, async (req, res) => {
+app.get('/api/recommendations', async (req, res) => {
+    const titleQ = req.query.title;
+    if (titleQ !== undefined && String(titleQ).trim() !== '') {
+        req.query.title = String(titleQ).trim();
+        return getMlRecommendationsByTitle(req, res);
+    }
+    if (!req.isAuthenticated || !req.isAuthenticated()) {
+        return res.status(401).json({ error: 'Login required' });
+    }
     try {
         const user = await User.findById(req.user._id).populate('savedBooks');
         

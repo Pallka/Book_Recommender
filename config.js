@@ -1,10 +1,10 @@
-const { name } = require("ejs"); 
+const { name } = require("ejs");
 const mongoose = require("mongoose");
 const { Schema, model, Types } = mongoose;
 
-// Connecting to MongoDB with explicit database name
+/** Opens Mongo and registers User, Book, SearchHistory, AiInteraction (also opened from server.js). */
 mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/book-recommender', {
-    dbName: 'book-recommender' // Explicitly set database name
+    dbName: 'book-recommender'
 })
     .then(() => {
         console.log("✅ MongoDB connected successfully");
@@ -37,7 +37,6 @@ const LoginSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Define the Book schema
 const BookSchema = new mongoose.Schema({
     isbn13: {
         type: String,
@@ -52,6 +51,16 @@ const BookSchema = new mongoose.Schema({
     title: {
         type: String,
         required: true
+    },
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    olid: {
+        type: String,
+        unique: true,
+        sparse: true
     },
     authors: {
         type: String,
@@ -68,6 +77,10 @@ const BookSchema = new mongoose.Schema({
     categories: {
         type: String,
         default: true
+    },
+    publishedDate: {
+        type: String,
+        default: ''
     },
     published_year: {
         type: Number,
@@ -90,25 +103,39 @@ const BookSchema = new mongoose.Schema({
     timestamps: true
 });
 
+const SearchHistorySchema = new mongoose.Schema({
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'users', default: null },
+    query: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now }
+}, { collection: 'search_history' });
+
+const AiInteractionSchema = new mongoose.Schema({
+    user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'users', default: null },
+    query: { type: String, required: true },
+    response: { type: String, default: '' },
+    meta: { type: mongoose.Schema.Types.Mixed, default: {} }
+}, { collection: 'ai_interactions', timestamps: true });
+
 const User = mongoose.model("users", LoginSchema);
 const Book = mongoose.model('Book', BookSchema);
+const SearchHistory = mongoose.model('SearchHistory', SearchHistorySchema);
+const AiInteraction = mongoose.model('AiInteraction', AiInteractionSchema);
 
 mongoose.connection.on('connected', async () => {
     try {
         const collections = await mongoose.connection.db.listCollections().toArray();
         const collectionNames = collections.map(c => c.name);
         console.log("Available collections:", collectionNames);
-        
+
         if (!collectionNames.includes('users')) {
-            console.log("Creating users collection...");
             await mongoose.connection.createCollection('users');
-            console.log("Users collection created successfully");
+            console.log("Created collection: users");
         }
-        
+
+        // Book model uses collection `books7k`; legacy bootstrap still creates `books` if missing.
         if (!collectionNames.includes('books7k')) {
-            console.log("Creating books collection...");
             await mongoose.connection.createCollection('books');
-            console.log("Books collection created successfully");
+            console.log("Created collection: books");
         }
     } catch (error) {
         console.error("Error checking/creating collection:", error);
@@ -117,5 +144,7 @@ mongoose.connection.on('connected', async () => {
 
 module.exports = {
     User,
-    Book
+    Book,
+    SearchHistory,
+    AiInteraction
 };

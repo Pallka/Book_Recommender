@@ -13,7 +13,6 @@
 
   <main class="d-flex justify-content-center p-3 min-vh-100">
       <div class="container mt-4">
-          <!-- Search bar with button -->
         <div class="row mb-4 justify-content-center">
           <div class="col-md-8 col-lg-6">
             <form method="GET" action="/books" style="background: transparent; padding: 0; border: none; box-shadow: none; max-width: none; width: auto;">
@@ -49,7 +48,6 @@
                                 style="height:240px; object-fit:contain;"
                               >
                             <% } else { %>
-                              <!-- якщо URL відсутній -->
                               <svg class="bd-placeholder-img card-img-top" height="180" preserveAspectRatio="xMidYMid slice" role="img" width="100%" xmlns="http://www.w3.org/2000/svg">
                                 <title>No Image</title>
                                 <rect width="100%" height="100%" fill="#868e96"></rect>
@@ -148,7 +146,6 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script>
   document.addEventListener('DOMContentLoaded', function() {
-      // Add click event listeners to all save book buttons
       document.querySelectorAll('.save-book-btn').forEach(button => {
           button.addEventListener('click', async function() {
               const bookId = this.dataset.bookId;
@@ -164,12 +161,10 @@
                   const data = await response.json();
                   
                   if (response.ok) {
-                      // Show success message
                       alert(data.message);
                       this.disabled = true;
                       this.textContent = 'Book Saved';
                   } else {
-                      // Show error message
                       alert(data.message || 'Error saving book');
                   }
               } catch (error) {

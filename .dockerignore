@@ -1,0 +1,8 @@
+# Node app image context (root Dockerfile)
+node_modules
+npm-debug.log
+.git
+.env
+*.md
+.cursor
+sample_ai_agent/*.md

@@ -1,0 +1,371 @@
+<%# FAB + Bootstrap modal chat; script: /js/ai-agent.js %>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
+  .ai-agent-root, .ai-agent-root * { font-family: 'Manrope', sans-serif; }
+
+  .ai-agent-fab {
+    position: fixed;
+    right: 22px;
+    bottom: 22px;
+    z-index: 1055;
+    width: 64px;
+    height: 64px;
+    border: 0;
+    padding: 0;
+    border-radius: 16px;
+    background: transparent;
+    box-shadow: 0 12px 28px rgba(0,0,0,.18);
+    transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
+  }
+  .ai-agent-fab svg { width: 100%; height: 100%; display:block; }
+  .ai-agent-fab:hover {
+    filter: drop-shadow(0 10px 18px rgba(127, 85, 57, .35));
+  }
+  .ai-agent-fab:active {
+    transform: translateY(1px) scale(0.98);
+    filter: drop-shadow(0 8px 14px rgba(127, 85, 57, .28));
+  }
+  .ai-agent-fab:focus-visible {
+    outline: 3px solid var(--c4, #DDB892);
+    outline-offset: 3px;
+  }
+
+
+  #aiAgentModal .modal-dialog {
+    position: fixed;
+    right: 22px;
+    bottom: 100px;
+    margin: 0;
+    max-width: none;
+    width: 420px;
+  }
+  @media (max-width: 420px) {
+    #aiAgentModal .modal-dialog { right: 10px; left: 10px; width: auto; }
+  }
+  #aiAgentModal .modal-content {
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid #212529;
+    background: var(--c6, #EDE0D4);
+  }
+  #aiAgentModal .modal-backdrop { opacity: .25; }
+
+  .ai-header {
+    height: 44px;
+    background: #FFFFFF;
+    display:flex;
+    align-items:center;
+    justify-content: space-between;
+    padding: 0 12px;
+  }
+  .ai-header-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #212529;
+    margin: 0;
+  }
+  .ai-icon-btn {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    border: 0;
+    background: transparent;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding: 0;
+  }
+  .ai-icon-btn svg { width: 18px; height: 18px; }
+ 
+  .ai-icon-btn:focus,
+  .ai-icon-btn:active,
+  .ai-icon-btn:focus-visible,
+  .ai-send:focus,
+  .ai-send:active,
+  .ai-send:focus-visible,
+  .ai-copy:focus,
+  .ai-copy:active {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+  .ai-icon-btn:hover,
+  .ai-icon-btn:active,
+  .ai-send:hover,
+  .ai-send:active {
+    background: transparent !important;
+  }
+
+  .ai-body {
+    padding: 12px;
+    height: 520px;
+    overflow: auto;
+    background: #F7F7F7;
+  }
+  .ai-scrollbar-hide::-webkit-scrollbar { width: 8px; }
+  .ai-scrollbar-hide::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); border-radius: 999px; }
+
+  .ai-bubble-row { display:flex; margin: 10px 0; }
+  .ai-bubble-row.user { justify-content: flex-end; }
+  .ai-bubble-row.assistant { justify-content: flex-start; }
+
+  .ai-bubble {
+    max-width: 85%;
+    border-radius: 16px;
+    padding: 10px 12px;
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .ai-bubble.user { background: #212529; color: #fff; }
+  .ai-bubble.assistant { background: #fff; color: #212529; border: 1px solid rgba(33,37,41,.12); }
+
+  /* Assistant bubbles: .ai-md + innerHTML from ai-agent.js (escaped + light Markdown) */
+  .ai-bubble.assistant.ai-md {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .ai-bubble.assistant.ai-md p {
+    margin: 0 0 0.55em;
+  }
+  .ai-bubble.assistant.ai-md p:last-child { margin-bottom: 0; }
+  .ai-bubble.assistant.ai-md ul {
+    margin: 0.35em 0 0.55em;
+    padding-left: 1.2em;
+    list-style-type: disc;
+  }
+  .ai-bubble.assistant.ai-md li {
+    margin: 0.25em 0;
+    padding-left: 0.15em;
+  }
+  .ai-bubble.assistant.ai-md li::marker { color: rgba(33,37,41,.45); }
+  .ai-bubble.assistant.ai-md strong {
+    font-weight: 700;
+    color: #1a1d20;
+  }
+  .ai-bubble.assistant.ai-md em {
+    font-style: italic;
+    color: #3d4146;
+  }
+
+  .ai-copy {
+    margin-left: 6px;
+    align-self: center;
+    border: 0 !important;
+    padding: 4px;
+    border-radius: 6px;
+    opacity: .55;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    appearance: none;
+    color: #212529;
+    background: transparent !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+  }
+  .ai-copy:hover {
+    opacity: .95;
+    background: rgba(33, 37, 41, 0.08) !important;
+    background-color: rgba(33, 37, 41, 0.08) !important;
+  }
+  .ai-copy:focus-visible {
+    outline: 2px solid rgba(33, 37, 41, 0.28) !important;
+    outline-offset: 2px;
+    background: rgba(33, 37, 41, 0.06) !important;
+  }
+  .ai-copy:active {
+    background: rgba(33, 37, 41, 0.12) !important;
+    opacity: 1;
+  }
+  .ai-copy svg { width: 14px; height: 14px; display: block; }
+
+  .ai-input-wrap {
+    background: #fff;
+    border-top: 1px solid rgba(33,37,41,.12);
+    padding: 10px;
+  }
+  .ai-input-row {
+    border: 1px solid rgba(33,37,41,.25);
+    border-radius: 10px;
+    padding: 6px 8px;
+    display:flex;
+    gap: 8px;
+    align-items:center;
+    background: #fff;
+  }
+  .ai-input {
+    border: 0;
+    outline: none;
+    background: transparent;
+    width: 100%;
+    font-size: 12px;
+  }
+  .ai-send {
+    border: 0;
+    background: transparent;
+    padding: 4px;
+    opacity: .85;
+  }
+  .ai-send:disabled { opacity: .35; }
+  .ai-send svg { width: 18px; height: 18px; }
+
+  .ai-status {
+    font-size: 11px;
+    opacity: .7;
+    margin-top: 6px;
+    min-height: 14px;
+  }
+
+  /* Loading state while /api/ai/chat is in flight (.ai-is-thinking on .ai-agent-root) */
+  .ai-typing-bubble {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    padding: 10px 14px !important;
+  }
+  .ai-typing-dots {
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+  }
+  .ai-typing-dots .ai-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #212529;
+    opacity: 0.4;
+    animation: ai-dot-bounce 1.05s ease-in-out infinite;
+  }
+  .ai-typing-dots .ai-dot:nth-child(2) { animation-delay: 0.16s; }
+  .ai-typing-dots .ai-dot:nth-child(3) { animation-delay: 0.32s; }
+  @keyframes ai-dot-bounce {
+    0%, 70%, 100% { transform: translateY(0); opacity: 0.35; }
+    35% { transform: translateY(-6px); opacity: 1; }
+  }
+  .ai-typing-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(33, 37, 41, 0.5);
+    letter-spacing: 0.03em;
+  }
+
+  .ai-agent-root.ai-is-thinking .ai-header {
+    background: linear-gradient(110deg, #fff 0%, #f5f0ea 45%, #fff 55%, #f5f0ea 100%);
+    background-size: 220% 100%;
+    animation: ai-header-shimmer 2s ease-in-out infinite;
+  }
+  @keyframes ai-header-shimmer {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
+
+  .ai-agent-root.ai-is-thinking .ai-agent-avatar {
+    animation: ai-avatar-float 1.25s ease-in-out infinite;
+  }
+  @keyframes ai-avatar-float {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-5px) scale(1.02); }
+  }
+
+  .ai-agent-root.ai-is-thinking .ai-input-row {
+    border-color: rgba(221, 184, 146, 0.65);
+    animation: ai-input-glow 1.8s ease-in-out infinite;
+  }
+  @keyframes ai-input-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(221, 184, 146, 0); }
+    50% { box-shadow: 0 0 0 3px rgba(221, 184, 146, 0.2); }
+  }
+
+  .ai-agent-root.ai-is-thinking .ai-send {
+    opacity: 0.45;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ai-typing-dots .ai-dot,
+    .ai-agent-root.ai-is-thinking .ai-header,
+    .ai-agent-root.ai-is-thinking .ai-agent-avatar,
+    .ai-agent-root.ai-is-thinking .ai-input-row {
+      animation: none !important;
+    }
+    .ai-agent-root.ai-is-thinking .ai-header { background: #fff; }
+    .ai-typing-dots .ai-dot { opacity: 0.55; }
+  }
+</style>
+
+<button
+  type="button"
+  class="ai-agent-fab"
+  aria-label="Open AI assistant"
+  data-bs-toggle="modal"
+  data-bs-target="#aiAgentModal"
+>
+
+  <svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect width="100" height="100" rx="16" fill="#212529"/>
+    <path d="M81.2502 42.1873C79.6397 42.192 78.0702 42.6953 76.7572 43.6278C75.4441 44.5604 74.452 45.8765 73.9169 47.3956H62.3023C62.0812 47.0019 61.8098 46.6386 61.495 46.3149L59.4299 44.2524L67.4872 36.1951C68.5029 36.6847 69.6305 36.9763 70.8336 36.9763C75.1409 36.9763 78.6461 33.4737 78.6461 29.1638C78.6461 24.8539 75.1409 21.3513 70.8336 21.3513C66.5263 21.3513 63.0211 24.8591 63.0211 29.1638C63.0211 30.3695 63.3153 31.4945 63.8023 32.5128L55.7476 40.5701L53.6825 38.505C53.3596 38.1903 52.9972 37.919 52.6044 37.6977V26.0831C54.1235 25.5481 55.4396 24.5559 56.3722 23.2428C57.3047 21.9298 57.808 20.3603 57.8127 18.7498C57.8127 14.4425 54.3075 10.9373 50.0002 10.9373C45.693 10.9373 42.1877 14.4425 42.1877 18.7498C42.1877 22.1404 44.37 25.0024 47.3961 26.0805V37.7003C47.0034 37.9208 46.641 38.1913 46.318 38.505L44.2528 40.5701L36.1982 32.5128C36.6851 31.4972 36.9794 30.3695 36.9794 29.1664C36.9794 24.8591 33.4742 21.3539 29.1669 21.3539C24.8596 21.3539 21.3544 24.8591 21.3544 29.1664C21.3544 33.4737 24.8596 36.9789 29.1669 36.9789C30.37 36.9789 31.495 36.6847 32.5133 36.1977L40.5706 44.2524L38.5055 46.3149C38.1906 46.6386 37.9193 47.0019 37.6982 47.3956H26.0836C25.5485 45.8765 24.5564 44.5604 23.2433 43.6278C21.9303 42.6953 20.3608 42.192 18.7502 42.1873C14.443 42.1873 10.9377 45.6925 10.9377 49.9998C10.9377 54.307 14.443 57.8123 18.7502 57.8123C20.3608 57.8075 21.9303 57.3043 23.2433 56.3717C24.5564 55.4391 25.5485 54.123 26.0836 52.6039H37.6982C37.9247 52.9893 38.1799 53.3591 38.5055 53.682L40.5706 55.7472L32.5133 63.8018C31.4696 63.2963 30.3265 63.0294 29.1669 63.0206C24.8596 63.0206 21.3544 66.5258 21.3544 70.8331C21.3544 75.1404 24.8596 78.6456 29.1669 78.6456C33.4742 78.6456 36.9794 75.1404 36.9794 70.8331C36.9794 69.63 36.6825 68.505 36.1982 67.4867L44.2528 59.4294L46.318 61.4945C46.6435 61.8227 47.0133 62.0779 47.3961 62.3018V73.9164C45.877 74.4515 44.5609 75.4436 43.6283 76.7567C42.6957 78.0697 42.1925 79.6393 42.1877 81.2498C42.1877 85.557 45.693 89.0623 50.0002 89.0623C54.3075 89.0623 57.8127 85.557 57.8127 81.2498C57.808 79.6393 57.3047 78.0697 56.3722 76.7567C55.4396 75.4436 54.1235 74.4515 52.6044 73.9164V62.3018C52.9872 62.0779 53.3544 61.8227 53.6825 61.4945L55.7476 59.4294L63.8049 67.4867C63.318 68.505 63.0237 69.63 63.0237 70.8331C63.0237 75.143 66.5263 78.6456 70.8362 78.6456C75.1461 78.6456 78.6487 75.143 78.6487 70.8331C78.6487 66.5232 75.1409 63.0206 70.8362 63.0206C69.6751 63.0263 68.5303 63.2943 67.4872 63.8044L59.4299 55.7472L61.495 53.682C61.8206 53.3591 62.0758 52.9893 62.3023 52.6039H73.9169C74.452 54.123 75.4441 55.4391 76.7572 56.3717C78.0702 57.3043 79.6397 57.8075 81.2502 57.8123C85.5575 57.8123 89.0627 54.307 89.0627 49.9998C89.0627 45.6925 85.5575 42.1873 81.2502 42.1873Z" fill="white"/>
+  </svg>
+</button>
+
+<div class="modal fade" id="aiAgentModal" tabindex="-1" aria-labelledby="aiAgentModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content ai-agent-root">
+      <div class="ai-header">
+        <button type="button" class="ai-icon-btn" data-bs-dismiss="modal" aria-label="Close">
+          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path fill-rule="evenodd" clip-rule="evenodd" d="M10.0192 7.60766C9.56611 7.20773 8.96689 6.99 8.34774 7.00035C7.7286 7.0107 7.13786 7.24832 6.69999 7.66315C6.26212 8.07797 6.0113 8.63762 6.00037 9.22418C5.98945 9.81074 6.21927 10.3784 6.64142 10.8076L12.1223 16L6.64142 21.1924C6.21927 21.6216 5.98945 22.1893 6.00037 22.7758C6.0113 23.3624 6.26212 23.922 6.69999 24.3369C7.13786 24.7517 7.7286 24.9893 8.34774 24.9996C8.96689 25.01 9.56611 24.7923 10.0192 24.3923L15.5 19.2L20.9808 24.3923C21.4339 24.7923 22.0331 25.01 22.6523 24.9996C23.2714 24.9893 23.8621 24.7517 24.3 24.3369C24.7379 23.922 24.9887 23.3624 24.9996 22.7758C25.0106 22.1893 24.7807 21.6216 24.3586 21.1924L18.8777 16L24.3586 10.8076C24.7807 10.3784 25.0106 9.81074 24.9996 9.22418C24.9887 8.63762 24.7379 8.07797 24.3 7.66315C23.8621 7.24832 23.2714 7.0107 22.6523 7.00035C22.0331 6.99 21.4339 7.20773 20.9808 7.60766L15.5 12.8L10.0192 7.60766Z" fill="#E30000"/>
+          </svg>
+        </button>
+        <h5 class="ai-header-title" id="aiAgentModalLabel">AI-agent</h5>
+        <button type="button" class="ai-icon-btn" id="aiAgentResetBtn" aria-label="Reset">
+
+          <svg width="24" height="24" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M6 17.1509C6 18.9245 6.45977 20.5849 7.36015 22.0943C8.26054 23.6038 9.48659 24.8113 11.0192 25.6792C12.5517 26.566 14.2184 27 16.0192 27C17.8582 27 19.5249 26.566 21.0575 25.6981C22.59 24.8302 23.7969 23.6415 24.6782 22.1321C25.5594 20.6226 26 18.9623 26 17.1698C26 16.717 25.8467 16.3396 25.5402 16.0189C25.3981 15.8639 25.2233 15.7414 25.028 15.66C24.8328 15.5785 24.6219 15.54 24.41 15.5472C23.9693 15.5472 23.5862 15.6981 23.2605 16.0189C22.9349 16.3396 22.7816 16.717 22.7816 17.1698C22.7816 19.0189 22.1111 20.6038 20.7893 21.9057C19.4674 23.2075 17.8582 23.8679 15.9808 23.8679C14.1226 23.8679 12.5517 23.2075 11.249 21.9057C9.94636 20.6038 9.29502 19.0189 9.29502 17.1698C9.29502 15.566 9.7931 14.1132 10.8084 12.8113C11.8238 11.5094 12.9923 10.8113 14.3333 10.7358L13.6054 11.434C13.2989 11.7736 13.1456 12.1321 13.1456 12.5283C13.1456 12.9434 13.2989 13.3208 13.6054 13.6604C14.295 14.3208 15.0805 14.3208 15.9234 13.6604L19.4483 10.2264C19.7548 10 19.908 9.60377 19.908 9.0566C19.908 8.56604 19.7548 8.20755 19.4483 7.98113L15.9617 4.45283C15.6169 4.15094 15.2529 4 14.8697 4C14.3908 4 13.9885 4.15094 13.6628 4.4717C13.3372 4.79245 13.1839 5.16981 13.1839 5.60377C13.1839 6.0566 13.3372 6.45283 13.6437 6.75472L14.3716 7.43396C11.977 7.84906 9.98467 8.98113 8.39464 10.8302C6.00958 13.6038 6 14.7736 6 17.1509Z" fill="#2DE404"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="ai-body ai-scrollbar-hide" id="aiAgentScroll">
+        <div style="display:flex; justify-content:center; padding: 8px 0 14px;">
+          <img
+            class="ai-agent-avatar"
+            src="/sample_ai_agent/robot_svg.svg"
+            alt="AI agent"
+            style="width: 72px; height: auto; object-fit: contain;"
+          />
+        </div>
+        <div class="ai-bubble-row assistant">
+          <div class="ai-bubble assistant" id="aiAgentWelcomeText"></div>
+        </div>
+        <div id="aiAgentMessages" role="log" aria-live="polite"></div>
+        <div id="aiAgentTyping" class="ai-typing-wrap" style="display:none;" aria-live="polite">
+          <div class="ai-bubble-row assistant">
+            <div class="ai-bubble assistant ai-typing-bubble">
+              <span class="ai-typing-dots" aria-hidden="true">
+                <span class="ai-dot"></span>
+                <span class="ai-dot"></span>
+                <span class="ai-dot"></span>
+              </span>
+              <span class="ai-typing-label">Thinking…</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-input-wrap">
+        <form id="aiAgentForm">
+          <div class="ai-input-row">
+            <input id="aiAgentInput" class="ai-input" type="text" autocomplete="off" placeholder="Ask me anything..." required />
+            <button id="aiAgentSendBtn" class="ai-send" type="submit" aria-label="Send">
+              <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <path d="M8.28516 9.80611C7.07583 7.08677 9.94122 4.35028 12.6045 5.68111L27.5791 13.1635C29.918 14.3326 29.9181 17.6684 27.5791 18.8374L12.6045 26.3198C9.94133 27.6504 7.07605 24.914 8.28516 22.1948L10.4668 17.2885C10.5088 17.194 10.5458 17.0977 10.5781 17.0004H16C16.5522 17.0004 16.9999 16.5526 17 16.0004C17 15.4482 16.5523 15.0004 16 15.0004H10.5781C10.5458 14.9032 10.5088 14.8069 10.4668 14.7124L8.28516 9.80611ZM5.33301 17.6665C5.88515 17.6665 6.33278 18.1144 6.33301 18.6665C6.33301 19.2187 5.88529 19.6665 5.33301 19.6665H2.66699C2.11471 19.6665 1.66699 19.2187 1.66699 18.6665C1.66722 18.1144 2.11485 17.6665 2.66699 17.6665H5.33301ZM5.33301 12.3335C5.88526 12.3335 6.33296 12.7812 6.33301 13.3335C6.33301 13.8857 5.88529 14.3335 5.33301 14.3335H2.66699C2.11471 14.3335 1.66699 13.8857 1.66699 13.3335C1.66704 12.7812 2.11474 12.3335 2.66699 12.3335H5.33301Z" fill="#3D3C3C"/>
+              </svg>
+            </button>
+          </div>
+          <div class="ai-status" id="aiAgentStatus"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/ai-agent.js"></script>
+

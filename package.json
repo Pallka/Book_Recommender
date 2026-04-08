@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "devStarts": "nodemon server.js"
+    "devStarts": "nodemon server.js",
+    "sync:books": "node scripts/syncBooks.js"
   },
   "author": "",
   "license": "ISC",
