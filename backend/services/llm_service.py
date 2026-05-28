@@ -1,11 +1,10 @@
-"""ChatOpenAI factory and optional list re-ranking via a one-shot completion."""
+"""OpenAI chat client and optional candidate re-ranking."""
 from langchain_openai import ChatOpenAI
 
 from config import Settings, get_settings
 
 
 def get_chat_model(model_name: str | None = None) -> ChatOpenAI:
-    """New ChatOpenAI per call; reads API key and default model from Settings."""
     settings = get_settings()
     name = model_name or settings.openai_chat_model
     if not settings.openai_api_key:
@@ -22,7 +21,6 @@ async def llm_rerank_books(
     candidates: list[dict],
     settings: Settings | None = None,
 ) -> list[dict]:
-    """Asks the LLM for a comma-separated ranking of candidate indices; falls back to input order on parse failure."""
     settings = settings or get_settings()
     if not candidates or not settings.openai_api_key:
         return candidates

@@ -7,17 +7,347 @@
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="icon" type="image/svg" href="../images/book.svg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
+    <style>
+      .enrich-btn {
+        --enrich-color: var(--c2, #7F5539);
+        --enrich-color-hover: var(--c1, #9C6644);
+        color: var(--enrich-color);
+        border: 1.5px solid var(--enrich-color);
+        background: transparent;
+        transition: background-color .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease;
+      }
+      .enrich-btn:hover:not(:disabled),
+      .enrich-btn:focus-visible:not(:disabled) {
+        background: var(--enrich-color);
+        color: #fff;
+        border-color: var(--enrich-color);
+        box-shadow: 0 4px 12px rgba(127, 85, 57, .25);
+      }
+      .enrich-btn:disabled {
+        opacity: .75;
+        cursor: progress;
+      }
+      .enrich-btn .spinner-border {
+        display: none;
+        color: var(--enrich-color);
+      }
+      .enrich-btn:hover:not(:disabled) .spinner-border { color: #fff; }
+      .enrich-btn.is-loading .spinner-border { display: inline-block; }
+      .enrich-btn.is-loading .enrich-btn-icon,
+      .enrich-btn.is-loading .enrich-btn-text { opacity: .6; }
+
+      [data-field].field-flash {
+        background: linear-gradient(90deg, var(--c4, #DDB892) 0%, rgba(221, 184, 146, 0) 100%);
+        background-size: 200% 100%;
+        animation: fieldFlash 1.6s ease-out 1;
+        border-radius: 4px;
+        padding: 0 4px;
+        margin: 0 -4px;
+      }
+      @keyframes fieldFlash {
+        0%   { background-position: 0% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      .enrich-toast-container {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        z-index: 1080;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        max-width: 360px;
+      }
+      .enrich-toast {
+        background: var(--c2, #7F5539);
+        color: #fff;
+        padding: 10px 14px;
+        border-radius: 10px;
+        border-left: 4px solid var(--c4, #DDB892);
+        box-shadow: 0 6px 20px rgba(127, 85, 57, .25);
+        font-size: 14px;
+        line-height: 1.35;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity .18s ease, transform .18s ease;
+      }
+      .enrich-toast.show { opacity: 1; transform: translateY(0); }
+      .enrich-toast.toast-success { background: var(--c2, #7F5539); border-left-color: var(--c4, #DDB892); }
+      .enrich-toast.toast-info    { background: var(--c1, #9C6644); border-left-color: var(--c5, #E6CCB2); }
+      .enrich-toast.toast-warning { background: var(--c3, #B08968); border-left-color: var(--c6, #EDE0D4); color: #3a261a; }
+      .enrich-toast.toast-error   { background: #5b2e1c; border-left-color: var(--c1, #9C6644); }
+
+      /* ===== Historical Timeline ===== */
+      .book-timeline {
+        margin: 32px 0;
+        padding: 32px 28px 24px;
+        background: var(--c6, #EDE0D4);
+        border-radius: 16px;
+        border: 1px solid rgba(127, 85, 57, .08);
+      }
+      .book-timeline-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 24px;
+      }
+      .book-timeline-title {
+        margin: 0;
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--c2, #7F5539);
+        letter-spacing: .2px;
+      }
+      .book-timeline-subtitle {
+        margin: 4px 0 0;
+        font-size: .82rem;
+        color: rgba(127, 85, 57, .75);
+      }
+      .book-timeline-list {
+        list-style: none;
+        margin: 0;
+        padding: 4px 0 4px 8px;
+        position: relative;
+      }
+
+      .book-timeline-item {
+        position: relative;
+        padding: 0 0 28px 38px;
+        opacity: 0;
+        transform: translateY(6px);
+        animation: tlFadeIn .45s ease-out forwards;
+      }
+      .book-timeline-item:not(:last-child)::after {
+        content: "";
+        position: absolute;
+        left: 14px;
+        top: 22px;
+        bottom: -10px;
+        width: 2px;
+        background: var(--c2, #7F5539);
+        opacity: .55;
+        border-radius: 2px;
+      }
+      .book-timeline-item:last-child { padding-bottom: 4px; }
+
+      @keyframes tlFadeIn {
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .book-timeline-marker {
+        position: absolute;
+        left: 6px;
+        top: 4px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--c6, #EDE0D4);
+        border: 2px solid var(--c2, #7F5539);
+        box-shadow: 0 0 0 3px var(--c6, #EDE0D4);
+        transition: transform .15s ease, background .15s ease;
+      }
+      .book-timeline-item:hover .book-timeline-marker {
+        background: var(--c2, #7F5539);
+        transform: scale(1.08);
+      }
+
+      .book-timeline-event-title {
+        margin: 0 0 6px;
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1f1408;
+        line-height: 1.35;
+      }
+      .book-timeline-year {
+        color: var(--c2, #7F5539);
+      }
+      .book-timeline-event-desc {
+        margin: 0;
+        font-size: .92rem;
+        line-height: 1.5;
+        color: #3a261a;
+        max-width: 64ch;
+      }
+
+      /* Skeleton loader */
+      .book-timeline-skeleton {
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+        padding: 4px 0 4px 46px;
+        position: relative;
+      }
+      .book-timeline-skeleton::before {
+        content: "";
+        position: absolute;
+        left: 14px;
+        top: 10px;
+        bottom: 10px;
+        width: 2px;
+        background: rgba(127, 85, 57, .35);
+        border-radius: 2px;
+      }
+      .book-timeline-skeleton-row {
+        position: relative;
+      }
+      .book-timeline-skeleton-row::before {
+        content: "";
+        position: absolute;
+        left: -32px;
+        top: 4px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--c6, #EDE0D4);
+        border: 2px solid rgba(127, 85, 57, .35);
+        box-shadow: 0 0 0 3px var(--c6, #EDE0D4);
+      }
+      .book-timeline-skeleton-bar {
+        height: 12px;
+        border-radius: 6px;
+        background: linear-gradient(90deg, rgba(127,85,57,.10) 0%, rgba(127,85,57,.22) 50%, rgba(127,85,57,.10) 100%);
+        background-size: 200% 100%;
+        animation: tlShimmer 1.4s infinite linear;
+      }
+      .book-timeline-skeleton-bar.w-title { width: 55%; height: 14px; margin-bottom: 8px; }
+      .book-timeline-skeleton-bar.w-desc  { width: 92%; }
+      @keyframes tlShimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+
+      .book-timeline-message {
+        padding: 8px 4px;
+        font-size: .9rem;
+        color: rgba(127, 85, 57, .75);
+      }
+
+      /* ===== Author's Birthplace Map (Leaflet) ===== */
+      .publication-map-card {
+        margin-top: 18px;
+        padding: 16px;
+        background: var(--c6, #EDE0D4);
+        border: 1px solid rgba(127, 85, 57, .14);
+        border-radius: 16px;
+        color: #3a261a;
+      }
+      .publication-map-card[hidden] { display: none !important; }
+      .publication-map-title {
+        margin: 0;
+        font-size: .95rem;
+        font-weight: 700;
+        color: var(--c2, #7F5539);
+        letter-spacing: .15px;
+      }
+      .publication-map-caption {
+        margin: 3px 0 12px;
+        font-size: .78rem;
+        color: rgba(127, 85, 57, .72);
+        line-height: 1.35;
+      }
+      .publication-map-leaflet {
+        position: relative;
+        aspect-ratio: 1.68 / 1;
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid rgba(127, 85, 57, .14);
+        background: var(--c6, #EDE0D4);
+      }
+      /* Subtle warm overlay so the OSM tiles blend with the beige palette without losing legibility */
+      .publication-map-leaflet::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: linear-gradient(180deg, rgba(127, 85, 57, .04), rgba(127, 85, 57, .08));
+        z-index: 401; /* above tile pane (200) and below markers (600) */
+      }
+      .publication-map-leaflet .leaflet-control-attribution {
+        background: rgba(237, 224, 212, .85);
+        color: rgba(58, 38, 26, .8);
+        font-size: 10px;
+        padding: 1px 6px;
+      }
+      .publication-map-leaflet .leaflet-control-attribution a {
+        color: var(--c2, #7F5539);
+      }
+      .publication-map-leaflet .leaflet-control-zoom a {
+        background: rgba(255, 255, 255, .92);
+        color: var(--c2, #7F5539);
+        border-color: rgba(127, 85, 57, .25);
+      }
+      .publication-map-leaflet .leaflet-control-zoom a:hover {
+        background: var(--c2, #7F5539);
+        color: #fff;
+      }
+      /* Custom DivIcon for the birthplace pin */
+      .birthplace-pin {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        color: var(--c2, #7F5539);
+        filter: drop-shadow(0 1px 2px rgba(58, 38, 26, .35));
+      }
+      .birthplace-pin svg { width: 24px; height: 24px; }
+      .birthplace-pin::before {
+        content: "";
+        position: absolute;
+        left: 50%;
+        top: 70%;
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        background: rgba(127, 85, 57, .22);
+        transform: translate(-50%, -50%);
+        animation: birthplacePulse 2.4s ease-out infinite;
+        z-index: -1;
+      }
+      @keyframes birthplacePulse {
+        0% { transform: translate(-50%, -50%) scale(.6); opacity: .55; }
+        70%, 100% { transform: translate(-50%, -50%) scale(1.9); opacity: 0; }
+      }
+      /* Leaflet tooltip styling */
+      .leaflet-tooltip.birthplace-tooltip {
+        background: rgba(58, 38, 26, .94);
+        border: 0;
+        color: #fff;
+        font-size: .75rem;
+        line-height: 1.35;
+        padding: 8px 10px;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(58, 38, 26, .25);
+      }
+      .leaflet-tooltip.birthplace-tooltip::before { display: none; }
+      .leaflet-tooltip.birthplace-tooltip strong {
+        display: block;
+        font-size: .78rem;
+        margin-bottom: 2px;
+      }
+      .publication-map-footnote {
+        margin: 10px 0 0;
+        font-size: .75rem;
+        color: rgba(58, 38, 26, .72);
+      }
+      @media (max-width: 767.98px) {
+        .publication-map-card {
+          max-width: 420px;
+          margin-inline: auto;
+        }
+      }
+    </style>
 </head>
 <body>
   <%- include('partials/header') %>
 
   <main class="d-flex justify-content-center p-3 min-vh-100">
     <div class="container mt-4 row featurette">
-        <div class="col-md-7 order-md-2"> 
-            <!-- <h2 class="featurette-heading fw-normal lh-1">Oh yeah, it's that good. 
-                <span class="text-body-secondary">See for yourself.</span>
-            </h2> 
-            <p class="lead">Another featurette? Of course. More placeholder content here to give you an idea of how this layout would work with some actual real-world content in place.</p>  -->
+        <div class="col-md-7 order-md-2">
             <h2><%= book.title %></h2>
             <p>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person-vcard" viewBox="0 0 16 16">
@@ -33,18 +363,20 @@
               </svg>
               <strong>Categories:</strong> <%= book.categories %>
             </p>
-            <p>
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-calendar-heart" viewBox="0 0 16 16">
-                <path fill-rule="evenodd" d="M4 .5a.5.5 0 0 0-1 0V1H2a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-1V.5a.5.5 0 0 0-1 0V1H4zM1 14V4h14v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1m7-6.507c1.664-1.711 5.825 1.283 0 5.132-5.825-3.85-1.664-6.843 0-5.132"/>
-              </svg>
-              <strong>Published year:</strong> <%= book.published_year %>
-            </p>
+            <% if (book.published_year && Number(book.published_year) !== 1) { %>
+              <p>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-calendar-heart" viewBox="0 0 16 16">
+                  <path fill-rule="evenodd" d="M4 .5a.5.5 0 0 0-1 0V1H2a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-1V.5a.5.5 0 0 0-1 0V1H4zM1 14V4h14v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1m7-6.507c1.664-1.711 5.825 1.283 0 5.132-5.825-3.85-1.664-6.843 0-5.132"/>
+                </svg>
+                <strong>Published year:</strong> <span data-field="publishedYear"><%= book.published_year %></span>
+              </p>
+            <% } %>
             <p>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-journals" viewBox="0 0 16 16">
                 <path d="M5 0h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2 2 2 0 0 1-2 2H3a2 2 0 0 1-2-2h1a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1H1a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v9a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1H3a2 2 0 0 1 2-2"/>
                 <path d="M1 6v-.5a.5.5 0 0 1 1 0V6h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1zm0 3v-.5a.5.5 0 0 1 1 0V9h.5a.5.5 0 0 1 0 1h-2a.5.5 0 0 1 0-1zm0 2.5v.5H.5a.5.5 0 0 0 0 1h2a.5.5 0 0 0 0-1H2v-.5a.5.5 0 0 0-1 0"/>
               </svg>
-              <strong>Pages:</strong> <%= book.num_pages %>
+              <strong>Pages:</strong> <span data-field="pages"><%= book.num_pages %></span>
             </p>
             <hr class="featurette-divider">
             <p>
@@ -52,12 +384,36 @@
                 <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14m0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16"/>
                 <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
               </svg>
-              <!-- <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-chat-right-dots" viewBox="0 0 16 16">
-                <path d="M2 1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h9.586a2 2 0 0 1 1.414.586l2 2V2a1 1 0 0 0-1-1zm12-1a2 2 0 0 1 2 2v12.793a.5.5 0 0 1-.854.353l-2.853-2.853a1 1 0 0 0-.707-.293H2a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2z"/>
-                <path d="M5 6a1 1 0 1 1-2 0 1 1 0 0 1 2 0m4 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0m4 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0"/>
-              </svg> -->
-              <strong>Description:</strong> <%= book.description %>
+              <strong>Description:</strong> <span data-field="description"><%= book.description %></span>
             </p>
+
+            <section class="book-timeline" data-book-id="<%= book._id %>" aria-busy="true" aria-live="polite">
+              <header class="book-timeline-header">
+                <div>
+                  <h3 class="book-timeline-title">Historical Context</h3>
+                  <p class="book-timeline-subtitle">Events that shaped the era around this book</p>
+                </div>
+              </header>
+
+              <div class="book-timeline-skeleton" aria-hidden="true">
+                <div class="book-timeline-skeleton-row">
+                  <div class="book-timeline-skeleton-bar w-title"></div>
+                  <div class="book-timeline-skeleton-bar w-desc"></div>
+                </div>
+                <div class="book-timeline-skeleton-row">
+                  <div class="book-timeline-skeleton-bar w-title"></div>
+                  <div class="book-timeline-skeleton-bar w-desc"></div>
+                </div>
+                <div class="book-timeline-skeleton-row">
+                  <div class="book-timeline-skeleton-bar w-title"></div>
+                  <div class="book-timeline-skeleton-bar w-desc"></div>
+                </div>
+              </div>
+
+              <ol class="book-timeline-list" hidden></ol>
+              <p class="book-timeline-message" hidden></p>
+            </section>
+
             <hr class="featurette-divider">
             <a href="javascript:history.back()" class="btn btn-outline-dark mb-2" 
                 data-bs-toggle="tooltip" 
@@ -79,33 +435,51 @@
               </svg>
               <%= isSaved ? 'Book Saved' : 'Save Book' %>
             </button>
+            <button class="btn mb-2 enrich-btn"
+                data-book-id="<%= book._id %>"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                title="Auto-fill missing fields with AI">
+              <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-magic enrich-btn-icon" viewBox="0 0 16 16">
+                <path d="M9.5 2.672a.5.5 0 1 0 1 0V.843a.5.5 0 0 0-1 0zm4.5.035A.5.5 0 0 0 13.293 2L12 3.293a.5.5 0 1 0 .707.707zM7.293 4A.5.5 0 1 0 8 3.293L6.707 2A.5.5 0 0 0 6 2.707zm-.621 2.5a.5.5 0 1 0 0-1H4.843a.5.5 0 1 0 0 1zm8.485 0a.5.5 0 1 0 0-1h-1.829a.5.5 0 0 0 0 1zM13.293 10A.5.5 0 1 0 14 9.293L12.707 8a.5.5 0 1 0-.707.707zM9.5 11.157a.5.5 0 0 0 1 0V9.328a.5.5 0 0 0-1 0zm1.854-5.097a.5.5 0 0 0 0-.706l-.708-.708a.5.5 0 0 0-.707 0L8.646 6.94a.5.5 0 0 0 0 .707l.708.708a.5.5 0 0 0 .707 0l1.293-1.293Zm-3 3a.5.5 0 0 0 0-.706l-.708-.708a.5.5 0 0 0-.707 0L.646 13.94a.5.5 0 0 0 0 .707l.708.708a.5.5 0 0 0 .707 0z"/>
+              </svg>
+              <span class="enrich-btn-text">Enrich with AI</span>
+            </button>
         </div> 
-        <div class="col-md-5 order-md-1"> 
-            <% if (book.thumbnail) { %>
-                <img
-                  src="<%= book.thumbnail %>"
-                  class="card-img-top"
-                  alt="<%= book.title %>"
-                  style="height:500px; object-fit:contain;"
-                >
-              <% } else { %>
-                <svg aria-label="Placeholder: 500x500" class="bd-placeholder-img bd-placeholder-img-lg featurette-image img-fluid mx-auto" height="500" preserveAspectRatio="xMidYMid slice" role="img" width="500" xmlns="http://www.w3.org/2000/svg">
-                    <title>Placeholder</title>
-                    <rect width="100%" height="100%" fill="var(--bs-secondary-bg)"></rect>
-                    <text x="50%" y="50%" fill="var(--bs-secondary-color)" dy=".3em">500x500</text></svg> 
-              <% } %> 
+        <div class="col-md-5 order-md-1">
+            <%- include('partials/book-thumbnail', { book, height: '500px', imgClass: 'card-img-top featurette-image img-fluid mx-auto', iconPx: 96 }) %>
+            <aside class="publication-map-card" data-book-id="<%= book._id %>" hidden aria-live="polite">
+              <h3 class="publication-map-title">Author's Birthplace</h3>
+              <p class="publication-map-caption">Born in <span data-location-caption>...</span></p>
+              <div class="publication-map-leaflet" id="author-birthplace-map" role="img" aria-label="Map showing the author's birthplace"></div>
+              <p class="publication-map-footnote" data-location-footnote></p>
+            </aside>
             </div> 
         </div>
     </div>
   </main>
 
+  <script>
+    window.AI_CURRENT_BOOK = <%- JSON.stringify({
+      _id: String(book._id),
+      title: book.title || '',
+      authors: book.authors || '',
+      thumbnail: book.thumbnail || '/images/no-cover.svg',
+      url: `/books/${String(book._id)}`
+    }).replace(/</g, '\\u003c') %>;
+  </script>
+
   <%- include('partials/footer') %>
 
+  <div class="enrich-toast-container" aria-live="polite" aria-atomic="true"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
   <script>
     const tooltipTriggerList = [...document.querySelectorAll('[data-bs-toggle="tooltip"]')]
     tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el))
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
   <script>
   document.addEventListener('DOMContentLoaded', function() {
       const saveButton = document.querySelector('.save-book-btn');
@@ -133,6 +507,294 @@
               } catch (error) {
                   console.error('Error:', error);
                   alert('Error saving book');
+              }
+          });
+      }
+
+      (function initAuthorBirthplaceMap() {
+          const card = document.querySelector('.publication-map-card');
+          if (!card) return;
+          const bookId = card.dataset.bookId;
+          if (!bookId) return;
+
+          const caption = card.querySelector('[data-location-caption]');
+          const footnote = card.querySelector('[data-location-footnote]');
+          const mapEl = card.querySelector('#author-birthplace-map');
+          if (!mapEl) return;
+
+          function escapeHtml(s) {
+              return String(s == null ? '' : s)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;');
+          }
+
+          // Custom DivIcon using the bi-geo-fill silhouette colored in the brand palette.
+          // We fall back to an empty string if Leaflet failed to load (handled below).
+          function buildPinIcon(L) {
+              return L.divIcon({
+                  className: 'birthplace-pin-wrapper',
+                  html:
+                      '<div class="birthplace-pin">' +
+                      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">' +
+                      '<path fill-rule="evenodd" d="M4 4a4 4 0 1 1 4.5 3.969V13.5a.5.5 0 0 1-1 0V7.97A4 4 0 0 1 4 3.999zm2.493 8.574a.5.5 0 0 1-.411.575c-.712.118-1.28.295-1.655.493a1.319 1.319 0 0 0-.37.265.301.301 0 0 0-.057.09V14l.002.008.016.033a.6.6 0 0 0 .145.15c.165.13.435.27.813.395.751.25 1.82.414 3.024.414s2.273-.163 3.024-.414c.378-.126.648-.265.813-.395a.6.6 0 0 0 .146-.15l.015-.033L12 14v-.004a.301.301 0 0 0-.057-.09 1.318 1.318 0 0 0-.37-.264c-.376-.198-.943-.375-1.655-.493a.5.5 0 1 1 .164-.986c.77.127 1.452.328 1.957.594.474.25.969.65.969 1.239 0 .415-.252.732-.544.971-.29.228-.68.413-1.116.558-.878.293-2.059.465-3.34.465-1.281 0-2.462-.172-3.34-.465-.436-.145-.826-.33-1.116-.558C3.252 14.732 3 14.415 3 14c0-.59.495-.99.969-1.241.505-.265 1.187-.467 1.957-.594a.5.5 0 0 1 .575.411z"/>' +
+                      '</svg>' +
+                      '</div>',
+                  iconSize: [28, 28],
+                  iconAnchor: [14, 24],
+                  tooltipAnchor: [0, -22],
+              });
+          }
+
+          // Slow LLM lookups must not block the page or leave an empty placeholder card visible.
+          // We fetch with an AbortController and only un-hide the card on a confident hit.
+          // The timeout is generous (90s) because on a fresh book the LLM (often Ollama) is busy
+          // serially answering both timeline and birthplace prompts; once cached, the response is instant.
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 90000);
+
+          fetch('/api/books/' + encodeURIComponent(bookId) + '/author-birthplace', {
+              headers: { 'Accept': 'application/json' },
+              signal: controller.signal,
+          })
+          .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+          .then(({ ok, data }) => {
+              const loc = data && data.location;
+              if (!ok || !loc) return;
+
+              const lat = Number(loc.latitude);
+              const lon = Number(loc.longitude);
+              if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+              const place = [loc.city, loc.country].filter(Boolean).join(', ');
+              const author = loc.authorName || '';
+              const birthYear = Number.isFinite(Number(loc.birthYear)) && Number(loc.birthYear) > 0
+                  ? Number(loc.birthYear)
+                  : null;
+
+              if (caption) caption.textContent = place || 'a documented birthplace';
+              if (footnote) {
+                  const parts = [];
+                  if (author) parts.push(author);
+                  if (birthYear) parts.push('born ' + birthYear);
+                  footnote.textContent = parts.length
+                      ? parts.join(' · ')
+                      : 'Birthplace of the primary author.';
+              }
+
+              card.hidden = false;
+
+              if (typeof window.L === 'undefined') {
+                  console.warn('Leaflet failed to load — birthplace card shown without interactive map.');
+                  return;
+              }
+              const L = window.L;
+
+              // Card was `hidden` (display:none) up until this point, so Leaflet would have
+              // computed a zero-sized container. Defer init to next frame so dimensions are valid.
+              requestAnimationFrame(() => {
+                  const map = L.map(mapEl, {
+                      zoomControl: true,
+                      scrollWheelZoom: false,
+                      dragging: true,
+                      doubleClickZoom: true,
+                      attributionControl: true,
+                      worldCopyJump: true,
+                  }).setView([lat, lon], 5);
+
+                  // CartoDB Positron — light, minimal tiles that complement the beige aesthetic.
+                  // Free for non-commercial use; OSM data attribution is required by license.
+                  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                      attribution:
+                          '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>',
+                      subdomains: 'abcd',
+                      maxZoom: 18,
+                  }).addTo(map);
+
+                  const marker = L.marker([lat, lon], {
+                      icon: buildPinIcon(L),
+                      keyboard: true,
+                      title: [author, place].filter(Boolean).join(' · '),
+                      alt: author ? author + ' birthplace: ' + place : 'Author birthplace: ' + place,
+                  }).addTo(map);
+
+                  const subtitleParts = [];
+                  if (author) subtitleParts.push(author);
+                  if (birthYear) subtitleParts.push('born ' + birthYear);
+                  const subtitle = subtitleParts.join(' · ');
+                  marker.bindTooltip(
+                      '<strong>' + escapeHtml(place) + '</strong>' +
+                      (subtitle ? '<span>' + escapeHtml(subtitle) + '</span>' : ''),
+                      { className: 'birthplace-tooltip', direction: 'top', offset: [0, -8] }
+                  );
+
+                  // Ensure tiles render correctly after the card transitions from hidden → visible.
+                  setTimeout(() => map.invalidateSize(), 60);
+              });
+          })
+          .catch((err) => {
+              if (err && err.name === 'AbortError') {
+                  console.info('Author birthplace lookup timed out — keeping card hidden.');
+              } else {
+                  console.warn('Author birthplace unavailable:', err);
+              }
+          })
+          .finally(() => {
+              clearTimeout(timeout);
+          });
+      })();
+
+      (function initBookTimeline() {
+          const section = document.querySelector('.book-timeline');
+          if (!section) return;
+          const bookId = section.dataset.bookId;
+          if (!bookId) return;
+
+          const skeleton = section.querySelector('.book-timeline-skeleton');
+          const list = section.querySelector('.book-timeline-list');
+          const message = section.querySelector('.book-timeline-message');
+          function escapeHtml(s) {
+              return String(s == null ? '' : s)
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/>/g, '&gt;')
+                  .replace(/"/g, '&quot;');
+          }
+
+          function showMessage(text) {
+              if (skeleton) skeleton.style.display = 'none';
+              if (list) list.hidden = true;
+              if (!message) return;
+              message.hidden = false;
+              message.textContent = text;
+          }
+
+          function renderTimeline(events) {
+              if (!list) return;
+              list.innerHTML = '';
+              events.forEach((ev, idx) => {
+                  const li = document.createElement('li');
+                  li.className = 'book-timeline-item';
+                  li.style.animationDelay = (idx * 80) + 'ms';
+                  li.innerHTML =
+                      '<span class="book-timeline-marker" aria-hidden="true"></span>' +
+                      '<h4 class="book-timeline-event-title">' +
+                          '<span class="book-timeline-year">' + escapeHtml(ev.year) + '</span> — ' +
+                          escapeHtml(ev.title) +
+                      '</h4>' +
+                      (ev.description
+                          ? '<p class="book-timeline-event-desc">' + escapeHtml(ev.description) + '</p>'
+                          : '');
+                  list.appendChild(li);
+              });
+              if (skeleton) skeleton.style.display = 'none';
+              list.hidden = false;
+              section.setAttribute('aria-busy', 'false');
+          }
+
+          fetch('/api/books/' + encodeURIComponent(bookId) + '/timeline', {
+              headers: { 'Accept': 'application/json' }
+          })
+          .then((r) => r.json().then((data) => ({ ok: r.ok, data })))
+          .then(({ ok, data }) => {
+              if (!ok || !data || data.success === false) {
+                  showMessage((data && data.error) || 'Could not load timeline');
+                  return;
+              }
+              const events = Array.isArray(data.timeline) ? data.timeline : [];
+              if (!events.length) {
+                  showMessage('No historical context could be generated for this book.');
+                  return;
+              }
+              renderTimeline(events);
+          })
+          .catch((err) => {
+              console.error('Timeline fetch error:', err);
+              showMessage('Could not load timeline');
+          });
+      })();
+
+      const enrichButton = document.querySelector('.enrich-btn');
+      if (enrichButton) {
+          const toastContainer = document.querySelector('.enrich-toast-container');
+
+          function showToast(message, variant) {
+              if (!toastContainer) { alert(message); return; }
+              const toast = document.createElement('div');
+              toast.className = 'enrich-toast toast-' + (variant || 'info');
+              toast.textContent = message;
+              toastContainer.appendChild(toast);
+              requestAnimationFrame(() => toast.classList.add('show'));
+              setTimeout(() => {
+                  toast.classList.remove('show');
+                  setTimeout(() => toast.remove(), 250);
+              }, 4500);
+          }
+
+          function setFieldValue(field, value) {
+              const el = document.querySelector('[data-field="' + field + '"]');
+              if (!el) return;
+              el.textContent = (value === null || value === undefined || value === '') ? '—' : String(value);
+              el.classList.remove('field-flash');
+              void el.offsetWidth;
+              el.classList.add('field-flash');
+          }
+
+          enrichButton.addEventListener('click', async function() {
+              const bookId = this.dataset.bookId;
+              if (!bookId || this.classList.contains('is-loading')) return;
+
+              this.classList.add('is-loading');
+              this.disabled = true;
+              const textEl = this.querySelector('.enrich-btn-text');
+              const originalText = textEl ? textEl.textContent : '';
+              if (textEl) textEl.textContent = 'Enriching…';
+
+              try {
+                  const response = await fetch('/api/books/' + encodeURIComponent(bookId) + '/enrich', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({})
+                  });
+                  const data = await response.json().catch(() => ({}));
+
+                  if (!response.ok || data.success === false) {
+                      const msg = (data && (data.error || data.details)) || ('Enrichment failed (' + response.status + ')');
+                      showToast(msg, 'error');
+                      return;
+                  }
+
+                  if (data.alreadyComplete) {
+                      showToast('All book data is already complete', 'info');
+                      return;
+                  }
+
+                  const updated = Array.isArray(data.updatedFields) ? data.updatedFields : [];
+                  const book = data.book || {};
+
+                  if (updated.includes('pages')) {
+                      setFieldValue('pages', book.num_pages != null ? book.num_pages : book.pageCount);
+                  }
+                  if (updated.includes('publishedYear')) {
+                      setFieldValue('publishedYear', book.published_year);
+                  }
+                  if (updated.includes('description')) {
+                      setFieldValue('description', book.description);
+                  }
+
+                  if (updated.length) {
+                      showToast('Book data enriched successfully! Updated: ' + updated.join(', '), 'success');
+                  } else {
+                      showToast('LLM did not return enough confident data to update fields', 'warning');
+                  }
+              } catch (err) {
+                  console.error('Enrichment error:', err);
+                  showToast('Network error while enriching book', 'error');
+              } finally {
+                  this.classList.remove('is-loading');
+                  this.disabled = false;
+                  if (textEl) textEl.textContent = originalText || 'Enrich with AI';
               }
           });
       }

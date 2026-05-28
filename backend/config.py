@@ -1,4 +1,4 @@
-"""App config from environment (.env); cached via get_settings()."""
+"""Pydantic settings from environment; use `get_settings()`."""
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,19 +28,16 @@ class Settings(BaseSettings):
     openai_chat_model: str = "gpt-4o-mini"
     openai_embed_model: str = "text-embedding-3-small"
 
-    # simple: 128-d vectors matching scripts/syncBooks.js; openai: use text-embedding-3-* and a matching Qdrant collection size
-    embedding_backend: str = "simple"
+    embedding_backend: str = "simple"  # simple: 128-d hash (see syncBooks.js); openai: match qdrant_vector_size to model
 
     node_app_url: str = ""
     internal_api_key: str = ""
 
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
-    # Second-pass ordering of Qdrant hits via LLM (extra latency + API cost)
     enable_llm_rerank: bool = False
 
 
 @lru_cache
 def get_settings() -> Settings:
-    """Singleton Settings; lru_cache avoids re-parsing .env on every import."""
     return Settings()

@@ -1,4 +1,4 @@
-"""LangChain `@tool` callables wired into the ReAct agent (Qdrant, Mongo, Node ML proxy, CF placeholder)."""
+"""LangChain tools for the book agent (descriptions are model-facing)."""
 from __future__ import annotations
 
 import logging

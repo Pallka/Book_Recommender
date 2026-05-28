@@ -43,10 +43,6 @@
               </svg></a>
             </button>
             <button type="button" class="btn btn-light color-c4"><a href="/recommendations">
-              <!-- <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-bookmark-heart" viewBox="0 0 16 16">
-                <path fill-rule="evenodd" d="M8 4.41c1.387-1.425 4.854 1.07 0 4.277C3.146 5.48 6.613 2.986 8 4.412z"></path>
-                <path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v13.5a.5.5 0 0 1-.777.416L8 13.101l-5.223 2.815A.5.5 0 0 1 2 15.5zm2-1a1 1 0 0 0-1 1v12.566l4.723-2.482a.5.5 0 0 1 .554 0L13 14.566V2a1 1 0 0 0-1-1z"></path>
-              </svg> -->
               Recommender</a></button>
               <form action="/logout?_method=DELETE" method="POST" class="d-inline m-0 p-0 border-0 bg-transparent">
                 <button class="btn btn-outline-light me-2" type="submit">Log out</button>
@@ -72,10 +68,15 @@
           </h2>
         </div>
 
-        <% if (typeof error !== 'undefined' && error) { %>
-            <!-- <div class="alert alert-danger" role="alert">
-                <%= error %>
-            </div> -->
+        <% 
+          const hasErrorMessage = (
+            typeof error === 'string' && error.trim().length > 0
+          ) || (
+            Array.isArray(error) && error.some(e => typeof e === 'string' && e.trim().length > 0)
+          );
+        %>
+        <% if (hasErrorMessage) { %>
+            <div class="alert alert-danger" role="alert"><%= Array.isArray(error) ? error.filter(e => typeof e === 'string').join(' ') : error %></div>
         <% } %>
 
         <% if (typeof books !== 'undefined' && books.length > 0) { %>
@@ -83,30 +84,14 @@
                 <% books.forEach(book => { %>
                     <div class="col-md-3 mb-4">
                         <div class="card">
-                            <% if (book.thumbnail) { %>
-                                <img src="<%= book.thumbnail %>" 
-                                     class="card-img-top" 
-                                     alt="<%= book.title %>"
-                                     style="height: 240px; object-fit: contain;">
-                            <% } else { %>
-                                <svg class="bd-placeholder-img card-img-top" 
-                                     height="240" 
-                                     xmlns="http://www.w3.org/2000/svg" 
-                                     role="img" 
-                                     preserveAspectRatio="xMidYMid slice" 
-                                     focusable="false">
-                                    <title>No Image</title>
-                                    <rect width="100%" height="100%" fill="#868e96"/>
-                                    <text x="50%" y="50%" fill="#dee2e6" dy=".3em">No Image</text>
-                                </svg>
-                            <% } %>
+                            <%- include('partials/book-thumbnail', { book, height: '240px', iconPx: 56 }) %>
                             <div class="card-body">
                                 <h5 class="card-title"><%= book.title %></h5>
                                 <p class="card-text">Author: <%= book.authors %></p>
                                 <% if (book.categories) { %>
                                     <p class="card-text">Categories: <%= book.categories %></p>
                                 <% } %>
-                                <% if (book.published_year) { %>
+                                <% if (book.published_year && Number(book.published_year) !== 1) { %>
                                     <p class="card-text">Published: <%= book.published_year %></p>
                                 <% } %>
                                 <div class="d-flex gap-2">

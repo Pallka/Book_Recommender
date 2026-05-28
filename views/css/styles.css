@@ -23,8 +23,6 @@ body {
 
 #btnone {
     display: flex;
-    /* width: 270px;
-    height: 59px; */
     box-shadow: 0px 2px 5px 0px rgba(156, 102, 68, 0.56);
     border-radius: 10px;
     border: 2px solid var(--c2, #7F5539);
@@ -34,14 +32,6 @@ body {
     align-items: center;
 
     color: var(--c2, #7F5539);
-    /* h3 */
-    /* font-size: 24px;
-    font-style: normal;
-    font-weight: 700;
-    line-height: normal;
-    margin-left:110px;
-    margin-top:20px;
-    padding: 15px 60px ; */
 }
 
 #btnone:hover {

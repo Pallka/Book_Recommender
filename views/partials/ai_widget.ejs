@@ -1,4 +1,4 @@
-<%# FAB + Bootstrap modal chat; script: /js/ai-agent.js %>
+<%# Loads /js/ai-agent.js %>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
   .ai-agent-root, .ai-agent-root * { font-family: 'Manrope', sans-serif; }
@@ -84,7 +84,9 @@
   .ai-send:active,
   .ai-send:focus-visible,
   .ai-copy:focus,
-  .ai-copy:active {
+  .ai-copy:active,
+  .ai-feedback:focus,
+  .ai-feedback:active {
     outline: none !important;
     box-shadow: none !important;
   }
@@ -104,9 +106,20 @@
   .ai-scrollbar-hide::-webkit-scrollbar { width: 8px; }
   .ai-scrollbar-hide::-webkit-scrollbar-thumb { background: rgba(0,0,0,.12); border-radius: 999px; }
 
-  .ai-bubble-row { display:flex; margin: 10px 0; }
+  .ai-bubble-row { display:flex; margin: 10px 0; align-items: flex-start; }
   .ai-bubble-row.user { justify-content: flex-end; }
   .ai-bubble-row.assistant { justify-content: flex-start; }
+
+  /* Copy + feedback icons (vertical), right of assistant bubble */
+  .ai-assistant-side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-left: 6px;
+    align-self: center;
+    flex-shrink: 0;
+  }
 
   .ai-bubble {
     max-width: 85%;
@@ -118,7 +131,7 @@
   .ai-bubble.user { background: #212529; color: #fff; }
   .ai-bubble.assistant { background: #fff; color: #212529; border: 1px solid rgba(33,37,41,.12); }
 
-  /* Assistant bubbles: .ai-md + innerHTML from ai-agent.js (escaped + light Markdown) */
+  /* Assistant bubbles: .ai-md + innerHTML from ai-agent.js (escaped plain text + lists) */
   .ai-bubble.assistant.ai-md {
     font-size: 12px;
     line-height: 1.45;
@@ -147,7 +160,7 @@
   }
 
   .ai-copy {
-    margin-left: 6px;
+    margin-left: 0;
     align-self: center;
     border: 0 !important;
     padding: 4px;
@@ -176,6 +189,51 @@
     opacity: 1;
   }
   .ai-copy svg { width: 14px; height: 14px; display: block; }
+
+  .ai-feedback {
+    border: 0 !important;
+    padding: 4px;
+    border-radius: 6px;
+    opacity: .55;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    appearance: none;
+    background: transparent !important;
+    box-shadow: none !important;
+    line-height: 0;
+  }
+  .ai-feedback:hover {
+    opacity: .95;
+    background: rgba(33, 37, 41, 0.08) !important;
+  }
+  .ai-feedback:focus-visible {
+    outline: 2px solid rgba(33, 37, 41, 0.28) !important;
+    outline-offset: 2px;
+  }
+  .ai-feedback:active {
+    background: rgba(33, 37, 41, 0.12) !important;
+    opacity: 1;
+  }
+  .ai-feedback img {
+    width: 16px;
+    height: 16px;
+    display: block;
+    pointer-events: none;
+  }
+  .ai-feedback.is-selected {
+    opacity: 1;
+  }
+  .ai-feedback-like.is-selected img {
+    filter: brightness(0) saturate(100%) invert(27%) sepia(85%) saturate(2000%) hue-rotate(325deg) brightness(0.95);
+  }
+  .ai-feedback-dislike.is-selected img {
+    filter: brightness(0) saturate(100%) invert(42%) sepia(8%) saturate(800%) hue-rotate(180deg);
+  }
+  .ai-feedback:disabled {
+    opacity: .35;
+    cursor: default;
+    pointer-events: none;
+  }
 
   .ai-input-wrap {
     background: #fff;
@@ -212,6 +270,101 @@
     opacity: .7;
     margin-top: 6px;
     min-height: 14px;
+  }
+
+  /* Clickable book cards rendered under assistant messages (server-resolved books from /api/ai/chat). */
+  .ai-book-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 8px 0 4px;
+  }
+  .ai-book-card {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    padding: 8px;
+    border-radius: 12px;
+    background: #ECECEC;
+    color: #212529;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: background .15s ease, transform .12s ease, box-shadow .15s ease, border-color .15s ease;
+    max-width: 92%;
+  }
+  .ai-book-card:hover,
+  .ai-book-card:focus-visible {
+    background: #E2E2E2;
+    border-color: rgba(33,37,41,.18);
+    box-shadow: 0 6px 14px rgba(0,0,0,.08);
+    text-decoration: none;
+    color: #212529;
+    outline: none;
+  }
+  .ai-book-card:active {
+    transform: translateY(1px);
+  }
+  .ai-book-card-thumb {
+    flex: 0 0 56px;
+    width: 56px;
+    height: 78px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ai-book-card-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .ai-book-card-thumb img.ai-book-card-thumb-fallback {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+    opacity: .55;
+  }
+  .ai-book-card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    min-width: 0;
+    flex: 1;
+  }
+  .ai-book-card-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #212529;
+    line-height: 1.25;
+    margin: 0 0 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    word-break: break-word;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .ai-book-card-cta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    line-height: 1.3;
+    color: rgba(33, 37, 41, .75);
+  }
+  .ai-book-card-cta-icon {
+    width: 14px;
+    height: 14px;
+    flex: 0 0 14px;
+    opacity: .8;
   }
 
   /* Loading state while /api/ai/chat is in flight (.ai-is-thinking on .ai-agent-root) */

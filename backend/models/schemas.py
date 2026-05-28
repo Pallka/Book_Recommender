@@ -1,4 +1,4 @@
-"""Pydantic models for chat and book-description endpoints."""
+"""Request/response models for FastAPI routes."""
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -10,15 +10,12 @@ class HistoryMessage(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """Same JSON body as legacy Node: either `message` or `user_input` plus optional `history` / `user_id`."""
-
     message: str = Field(default="", description="Primary field used by the browser widget")
     user_input: str = Field(default="", description="Alias used by older Python clients")
     user_id: Optional[str] = None
     history: list[HistoryMessage] = Field(default_factory=list)
 
     def effective_message(self) -> str:
-        """Non-empty `message` or `user_input` (trimmed)."""
         t = (self.message or self.user_input or "").strip()
         return t
 
@@ -43,8 +40,6 @@ class ChatResponse(BaseModel):
 
 
 class GenerateDescriptionRequest(BaseModel):
-    """Body for POST .../books/{id}/generate-description."""
-
     tone: Literal["neutral", "friendly", "short"] = "friendly"
     language: str = "uk"
 

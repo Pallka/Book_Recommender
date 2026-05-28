@@ -1,4 +1,4 @@
-"""Per-request `user_id` for tools via ContextVar (no module-level globals)."""
+"""ContextVar holding the current Mongo user id for tools."""
 import contextvars
 
 current_user_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(

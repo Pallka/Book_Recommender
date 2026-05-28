@@ -1,4 +1,4 @@
-"""Text → vector for Qdrant: either the 128-d hash used by `scripts/syncBooks.js` or OpenAI embeddings."""
+"""Embeddings: 128-d `simple_embedding` (must match Node sync) or OpenAI when configured."""
 from __future__ import annotations
 
 import math
@@ -10,7 +10,6 @@ from config import Settings, get_settings
 
 
 def simple_embedding(text: str, dim: int = 128) -> list[float]:
-    """Same char-hashing + L2 norm as `scripts/syncBooks.js` (must match Qdrant payload dim)."""
     out = [0.0] * dim
     if not text:
         return out
@@ -22,7 +21,6 @@ def simple_embedding(text: str, dim: int = 128) -> list[float]:
 
 
 async def embed_query(text: str, settings: Settings | None = None) -> list[float]:
-    """Query vector for semantic search; `embedding_backend` simple vs OpenAI (needs API key)."""
     settings = settings or get_settings()
     if settings.embedding_backend == "openai":
         if not settings.openai_api_key:
@@ -38,15 +36,13 @@ async def embed_query(text: str, settings: Settings | None = None) -> list[float
 
 
 def embed_query_sync(text: str, settings: Settings | None = None) -> list[float]:
-    """Sync path for LangChain tools; only supports `embedding_backend=simple` (OpenAI needs async)."""
     settings = settings or get_settings()
     if settings.embedding_backend == "openai":
-        raise RuntimeError("Use async embed_query for OpenAI backend in async routes")
+        raise RuntimeError("embed_query_sync does not support embedding_backend=openai; use embed_query")
     return simple_embedding(text, dim=settings.qdrant_vector_size)
 
 
 def format_books_for_context(hits: Sequence[dict]) -> str:
-    """Numbered catalog lines for tool prompts; Ukrainian fallback line if no titles."""
     lines: list[str] = []
     for i, h in enumerate(hits[:8], 1):
         t = h.get("title") or ""

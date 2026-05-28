@@ -1,4 +1,4 @@
-"""LangGraph `create_react_agent` with tools (Qdrant search, Mongo saved books, optional Node ML)."""
+"""LangGraph ReAct agent and `run_agent` entrypoint."""
 from __future__ import annotations
 
 import logging
@@ -31,7 +31,6 @@ def _history_to_messages(
     history: Sequence[Any],
     user_message: str,
 ) -> list[BaseMessage]:
-    """Maps client `history` + current turn to LangChain messages; system text lives in `create_react_agent(..., prompt=...)`."""
     msgs: list[BaseMessage] = []
     for h in history[-16:]:
         role = getattr(h, "role", None) or (h.get("role") if isinstance(h, dict) else None)
@@ -56,7 +55,6 @@ _agent = None
 
 
 def get_compiled_agent(settings: Settings | None = None):
-    """Lazy singleton graph (first call wins; env model changes after import are ignored)."""
     global _agent
     settings = settings or get_settings()
     if _agent is None:
@@ -70,22 +68,7 @@ async def run_agent(
     user_id: str | None,
     settings: Settings | None = None,
 ) -> str:
-    """
-    Runs the compiled ReAct graph once.
-
-    Args:
-        user_message: Latest user text.
-        history: Prior turns (dicts or objects with role/content).
-        user_id: Mongo user id for tools; None for anonymous.
-        settings: Optional override; defaults to get_settings().
-
-    Returns:
-        Final assistant string from the last AIMessage.
-
-    Raises:
-        ValueError: If `OPENAI_API_KEY` is missing.
-        Exception: Graph/LLM errors are logged and re-raised.
-    """
+    """Invokes the LangGraph ReAct agent; returns the final assistant text."""
     settings = settings or get_settings()
     if not settings.openai_api_key:
         raise ValueError("OPENAI_API_KEY is required")

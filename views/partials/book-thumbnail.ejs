@@ -1,0 +1,31 @@
+<% 
+  const raw = book.thumbnail && String(book.thumbnail).trim();
+  const placeholderPaths = ['/images/no-cover.svg', '/images/default-book.jpg'];
+  const isPlaceholder = !raw || placeholderPaths.includes(raw);
+  const h = typeof height === 'string' ? height : '240px';
+  const cls = typeof imgClass === 'string' ? imgClass : 'card-img-top';
+  const iconSize = (typeof iconPx !== 'undefined' && typeof iconPx === 'number') ? iconPx : 64;
+  const phId = 'book-ph-' + String(book._id);
+%>
+<div class="book-cover-slot <%= cls %> position-relative bg-white" style="min-height:<%= h %>">
+  <% if (!isPlaceholder) { %>
+  <img
+    src="<%= raw %>"
+    alt="<%= book.title %>"
+    class="w-100"
+    style="height:<%= h %>;object-fit:contain;display:block;"
+    loading="lazy"
+    decoding="async"
+    onerror="this.classList.add('d-none');document.getElementById('<%= phId %>').classList.remove('d-none');"
+  >
+  <% } %>
+  <div
+    id="<%= phId %>"
+    class="book-cover-icon-fallback w-100 d-flex align-items-center justify-content-center <%= isPlaceholder ? '' : 'd-none' %>"
+    style="height:<%= h %>;background:#fff;border-bottom:1px solid rgba(0,0,0,.08);"
+    role="img"
+    aria-label="No cover"
+  >
+    <img src="/images/book.svg" width="<%= iconSize %>" height="<%= iconSize %>" alt="" class="book-cover-fallback-icon" style="opacity:.55;display:block;" aria-hidden="true">
+  </div>
+</div>

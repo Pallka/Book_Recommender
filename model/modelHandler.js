@@ -47,6 +47,11 @@ class ModelHandler {
         }
     }
 
+    /**
+     * Runs the TF model on a 2003-dim profile; returns top `bookIndex` values.
+     * @param {number[]} userProfile binary feature vector from `preprocessUserProfile`
+     * @returns {Promise<number[]>} up to 20 book indices sorted by score
+     */
     async getRecommendations(userProfile) {
         if (!this.initialized) {
             throw new Error('Model not initialized');
@@ -71,7 +76,6 @@ class ModelHandler {
 
             console.log('Top prediction indices:', indices);
 
-            // Cleanup
             inputTensor.dispose();
             predictions.dispose();
 
@@ -82,6 +86,11 @@ class ModelHandler {
         }
     }
 
+    /**
+     * Builds a one-hot profile from saved books (`bookIndex` + category slots).
+     * @param {object[]} savedBooks populated Book documents
+     * @returns {number[]} length-2003 vector for `getRecommendations`
+     */
     preprocessUserProfile(savedBooks) {
         console.log('Preprocessing user profile from saved books:', savedBooks.length);
         
@@ -89,7 +98,6 @@ class ModelHandler {
         
         const booksWithoutIndices = [];
         
-        // Update profile based on saved books
         savedBooks.forEach(book => {
             if (typeof book.bookIndex === 'number') {
                 console.log('Processing book with index:', book.bookIndex);
@@ -98,7 +106,6 @@ class ModelHandler {
                 booksWithoutIndices.push(book.title);
             }
 
-            // Process categories
             if (book.categories) {
                 const categories = Array.isArray(book.categories) 
                     ? book.categories 

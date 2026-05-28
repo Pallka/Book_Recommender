@@ -40,25 +40,14 @@
                   <% books.forEach(book => { %>
                       <div class="col-md-3">
                           <div class="card mb-4">
-                            <% if (book.thumbnail) { %>
-                              <img
-                                src="<%= book.thumbnail %>"
-                                class="card-img-top"
-                                alt="<%= book.title %>"
-                                style="height:240px; object-fit:contain;"
-                              >
-                            <% } else { %>
-                              <svg class="bd-placeholder-img card-img-top" height="180" preserveAspectRatio="xMidYMid slice" role="img" width="100%" xmlns="http://www.w3.org/2000/svg">
-                                <title>No Image</title>
-                                <rect width="100%" height="100%" fill="#868e96"></rect>
-                                <text x="50%" y="50%" fill="#dee2e6" dy=".3em">No Image</text>
-                              </svg>
-                            <% } %>
+                            <%- include('partials/book-thumbnail', { book, height: '240px', iconPx: 56 }) %>
                               <div class="card-body">
                                   <h5 class="card-title"><%= book.title %></h5>
                                   <p class="card-text">Author: <%= book.authors %></p>
                                   <p class="card-text">Categories: <%= book.categories %></p>
-                                  <p class="card-text">Published year: <%= book.published_year %></p>
+                                  <% if (book.published_year && Number(book.published_year) !== 1) { %>
+                                    <p class="card-text">Published year: <%= book.published_year %></p>
+                                  <% } %>
                                   <button class="btn btn-light save-book-btn <%= savedBookIds && savedBookIds.includes(book._id.toString()) ? 'disabled' : '' %>" 
                                           data-book-id="<%= book._id %>"
                                           <%= savedBookIds && savedBookIds.includes(book._id.toString()) ? 'disabled' : '' %>>
@@ -139,11 +128,13 @@
 
   <%- include('partials/footer') %>
 
-  <script>
-    const tooltipTriggerList = [...document.querySelectorAll('[data-bs-toggle="tooltip"]')]
-    tooltipTriggerList.forEach(el => new bootstrap.Tooltip(el))
-  </script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      if (typeof bootstrap === 'undefined' || !bootstrap.Tooltip) return;
+      document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+    });
+  </script>
   <script>
   document.addEventListener('DOMContentLoaded', function() {
       document.querySelectorAll('.save-book-btn').forEach(button => {

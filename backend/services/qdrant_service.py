@@ -68,7 +68,6 @@ async def semantic_search(
 
 
 async def ensure_collection_exists(settings: Settings | None = None) -> Optional[str]:
-    """None if the configured collection exists; otherwise the exception string (for /health)."""
     settings = settings or get_settings()
     client = get_qdrant(settings)
     try:

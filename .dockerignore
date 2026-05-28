@@ -5,4 +5,5 @@ npm-debug.log
 .env
 *.md
 .cursor
+.cursorignore
 sample_ai_agent/*.md

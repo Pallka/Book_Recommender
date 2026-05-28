@@ -143,48 +143,5 @@
   <%- include('partials/footer') %>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
-  <!-- Disabled: legacy localStorage JWT + localhost:5000 client (app uses session auth).
-  <script>
-    const token = localStorage.getItem('token');
-    const authButtons = document.getElementById('authButtons');
-    const userInfo = document.getElementById('userInfo');
-    const userName = document.getElementById('userName');
-    const logoutBtn = document.getElementById('logoutBtn');
-
-    if (token) {
-      authButtons.classList.add('d-none');
-      userInfo.classList.remove('d-none');
-      fetch('http://localhost:5000/api/users/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.name) {
-          userName.textContent = `Welcome, ${data.name}`;
-        }
-      })
-      .catch(error => {
-        console.error('Error fetching user info:', error);
-        localStorage.removeItem('token');
-        window.location.reload();
-      });
-      logoutBtn.addEventListener('click', () => {
-        localStorage.removeItem('token');
-        window.location.reload();
-      });
-    }
-    document.getElementById('btnone').addEventListener('click', () => {
-      if (!token) {
-        window.location.href = './login.html';
-      } else {
-        window.location.href = './books.html';
-      }
-    });
-    document.getElementById('btntwo').addEventListener('click', () => {
-      window.location.href = './register.ejs';
-    });
-  </script> -->
 </body>
 </html>

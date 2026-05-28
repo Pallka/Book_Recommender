@@ -1,4 +1,4 @@
-"""FastAPI /chat: 128-d Qdrant search (same embedding as syncBooks.js) + OpenAI completion; optional Node ML titles."""
+"""Small FastAPI service: Qdrant + OpenAI chat (embedding aligned with `scripts/syncBooks.js`)."""
 import logging
 import math
 import os
@@ -26,7 +26,6 @@ INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "")
 
 
 def simple_embedding(text: str, dim: int = VECTOR_DIM) -> list[float]:
-    """Match scripts/syncBooks.js simpleEmbedding (charCodeAt loop)."""
     out = [0.0] * dim
     if not text:
         return out
@@ -52,7 +51,7 @@ class ChatRequest(BaseModel):
 
 
 def qdrant_search(vector: list[float], limit: int = 8) -> list[dict[str, Any]]:
-    """Cosine search in QDRANT_COLLECTION; returns [] on client errors (logged)."""
+    """Semantic catalog lookup in Qdrant; returns title/author/category payloads."""
     client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT, timeout=30)
     try:
         res = client.search(
@@ -79,7 +78,6 @@ def qdrant_search(vector: list[float], limit: int = 8) -> list[dict[str, Any]]:
 
 
 def fetch_ml_books(seed_title: str) -> list[dict[str, str]]:
-    """Node TF recommendations by title; [] if NODE_APP_URL unset or request fails."""
     if not NODE_APP_URL or not seed_title.strip():
         return []
     q = urllib.parse.quote(seed_title.strip())
@@ -106,7 +104,6 @@ def fetch_ml_books(seed_title: str) -> list[dict[str, str]]:
 
 
 def build_context_lines(hits: list[dict[str, Any]]) -> list[str]:
-    """Numbered lines for the first six semantic hits (injected into the user message)."""
     lines: list[str] = []
     for i, h in enumerate(hits[:6], 1):
         t = h.get("title") or ""
@@ -126,7 +123,7 @@ def health() -> dict[str, str]:
 
 @app.post("/chat")
 def chat(body: ChatRequest) -> dict[str, Any]:
-    """Embed query → Qdrant → optional ML from top hit → OpenAI chat; JSON matches Node expectations."""
+    """Embed query, search Qdrant, optional ML seed, then OpenAI chat reply."""
     message = (body.user_input or "").strip()
     if not message:
         return {"reply": "", "error": "empty message"}
@@ -150,7 +147,8 @@ def chat(body: ChatRequest) -> dict[str, Any]:
         "Use the catalog context when relevant. Be concise. "
         "If context does not match the question, answer from general knowledge "
         "and suggest how the user could browse or search on the site. "
-        "Format replies in Markdown: blank line between paragraphs; each list item on its own line starting with \"- \"."
+        "Use plain text only: no Markdown headings (#), no **bold**, no backticks. "
+        "Separate paragraphs with a blank line; each list item on its own line starting with \"- \"."
     )
 
     user_content = message

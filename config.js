@@ -1,10 +1,50 @@
-const { name } = require("ejs");
+const fs = require("fs");
 const mongoose = require("mongoose");
 const { Schema, model, Types } = mongoose;
 
-/** Opens Mongo and registers User, Book, SearchHistory, AiInteraction (also opened from server.js). */
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/book-recommender', {
-    dbName: 'book-recommender'
+/** Docker/host: `/.dockerenv`, cgroup hints, or RUNNING_IN_DOCKER=1 (compose). */
+function isRunningInsideDocker() {
+    if (process.env.RUNNING_IN_DOCKER === "1" || process.env.RUNNING_IN_DOCKER === "true") {
+        return true;
+    }
+    try {
+        if (fs.existsSync("/.dockerenv")) return true;
+    } catch { /* ignore */ }
+    try {
+        if (fs.existsSync("/proc/1/cgroup")) {
+            const cg = fs.readFileSync("/proc/1/cgroup", "utf8");
+            if (/docker|containerd|kubepods/i.test(cg)) return true;
+        }
+    } catch { /* ignore */ }
+    return false;
+}
+
+/** Replace `mongodb://mongo` with 127.0.0.1 when the process runs on the host, not in Docker. */
+function resolveMongoUriForProcess(uri) {
+    if (!uri || typeof uri !== "string") return uri;
+    try {
+        if (!/^mongodb:\/\/mongo\b/i.test(uri)) return uri;
+        if (isRunningInsideDocker()) return uri;
+        return uri.replace(/^mongodb:\/\/mongo\b/i, "mongodb://127.0.0.1");
+    } catch {
+        return uri;
+    }
+}
+
+if (!process.env.MONGO_URI) {
+    process.env.MONGO_URI =
+        process.env.NODE_ENV === "production"
+            ? "mongodb://mongo:27017/book-recommender"
+            : "mongodb://localhost:27017/book-recommender";
+}
+process.env.MONGO_URI = resolveMongoUriForProcess(process.env.MONGO_URI);
+
+console.log(
+    `[mongo] connecting → ${process.env.MONGO_URI} (inDocker=${isRunningInsideDocker()})`
+);
+
+mongoose.connect(process.env.MONGO_URI, {
+    dbName: "book-recommender"
 })
     .then(() => {
         console.log("✅ MongoDB connected successfully");
@@ -57,6 +97,17 @@ const BookSchema = new mongoose.Schema({
         unique: true,
         sparse: true
     },
+    googleBooksId: {
+        type: String,
+        index: true
+    },
+    googleBooksUpdatedAt: {
+        type: Date
+    },
+    googleBooksNotFound: {
+        type: Boolean,
+        default: false
+    },
     olid: {
         type: String,
         unique: true,
@@ -68,35 +119,84 @@ const BookSchema = new mongoose.Schema({
     },
     thumbnail: {
         type: String,
-        default: '/images/default-book.jpg'
+        default: '/images/no-cover.svg'
     },
     description: {
-        type: String,
-        default: true
+        type: String
+    },
+    coverImage: {
+        type: String
     },
     categories: {
-        type: String,
-        default: true
+        type: [{ type: String }],
+        default: []
     },
     publishedDate: {
-        type: String,
-        default: ''
+        type: String
     },
     published_year: {
-        type: Number,
-        default: true
+        type: Number
     },
     average_rating: {
-        type: Number,
-        default: true
+        type: Number
+    },
+    averageRating: {
+        type: Number
     },
     num_pages: {
-        type: Number,
-        default: true
+        type: Number
     },
     ratings_count: {
+        type: Number
+    },
+    ratingsCount: {
+        type: Number
+    },
+    pageCount: {
+        type: Number
+    },
+    isClassic: {
+        type: Boolean,
+        default: false
+    },
+    isModern: {
+        type: Boolean,
+        default: false
+    },
+    timeline: {
+        type: [{
+            year: { type: Number, required: true },
+            title: { type: String, required: true },
+            description: { type: String, default: '' },
+            _id: false,
+        }],
+        default: undefined,
+    },
+    timelineGeneratedAt: {
+        type: Date,
+        default: undefined,
+    },
+    timelinePromptVersion: {
         type: Number,
-        default: true
+        default: 0,
+    },
+    authorBirthplace: {
+        authorName: { type: String, default: '' },
+        city: { type: String, default: '' },
+        country: { type: String, default: '' },
+        birthYear: { type: Number },
+        latitude: { type: Number },
+        longitude: { type: Number },
+        confidence: { type: String, default: '' },
+        source: { type: String, default: '' },
+        generatedAt: { type: Date },
+    },
+    authorBirthplaceCheckedAt: {
+        type: Date,
+    },
+    authorBirthplaceVersion: {
+        type: Number,
+        default: 0,
     },
 }, {
     collection: 'books7k',
@@ -113,7 +213,9 @@ const AiInteractionSchema = new mongoose.Schema({
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'users', default: null },
     query: { type: String, required: true },
     response: { type: String, default: '' },
-    meta: { type: mongoose.Schema.Types.Mixed, default: {} }
+    meta: { type: mongoose.Schema.Types.Mixed, default: {} },
+    feedback: { type: String, enum: ['like', 'dislike'], default: undefined },
+    feedbackAt: { type: Date, default: undefined }
 }, { collection: 'ai_interactions', timestamps: true });
 
 const User = mongoose.model("users", LoginSchema);
@@ -132,7 +234,6 @@ mongoose.connection.on('connected', async () => {
             console.log("Created collection: users");
         }
 
-        // Book model uses collection `books7k`; legacy bootstrap still creates `books` if missing.
         if (!collectionNames.includes('books7k')) {
             await mongoose.connection.createCollection('books');
             console.log("Created collection: books");

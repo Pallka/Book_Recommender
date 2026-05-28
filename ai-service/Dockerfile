@@ -1,5 +1,4 @@
 FROM python:3.12-slim
-# Lightweight OpenAI+Qdrant chat API consumed by Node AI_SERVICE_URL.
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

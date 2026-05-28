@@ -1,4 +1,4 @@
-"""FastAPI app: `cd backend`, `pip install -r requirements.txt`, `set PYTHONPATH=.`, `uvicorn main:app --reload --port 8080`."""
+"""Optional Python API (chat, book description); run with uvicorn `main:app`."""
 from __future__ import annotations
 
 import logging

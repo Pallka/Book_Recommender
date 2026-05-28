@@ -14,12 +14,9 @@ const initializePassport = require("./passport-config");
 const { User, Book, SearchHistory, AiInteraction } = require("./config");
 const modelHandler = require('./model/modelHandler');
 const { syncBooks } = require("./scripts/syncBooks");
-
-mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/book-recommender', {
-    dbName: 'book-recommender'
-})
-    .then(() => console.log("✅ MongoDB connected to book-recommender database"))
-    .catch(err => console.error("❌ MongoDB connection error:", err));
+const { enrichBookData, detectMissingFields } = require("./services/bookEnrichment");
+const { generateBookTimeline } = require("./services/bookTimeline");
+const { getAuthorBirthplace } = require("./services/authorBirthplace");
 
 modelHandler.loadModel()
     .then(() => console.log('✅ Model initialized successfully'))
@@ -138,7 +135,6 @@ app.get("/faqs", (req, res) => res.render("faqs"));
 app.get("/register_seccess", (req, res) => res.render("register_seccess"));
 app.get("/error", (req, res) => res.render("error"));
 
-// Sync Google Books -> MongoDB + Qdrant
 app.post("/api/sync-books", async (req, res) => {
     if (!internalKeyOk(req)) {
         return res.status(401).json({ success: false, error: "Unauthorized" });
@@ -160,14 +156,91 @@ app.post("/api/sync-books", async (req, res) => {
     }
 });
 
-/** Allows request if INTERNAL_API_KEY is unset; else requires header or query match. */
 function internalKeyOk(req) {
     if (!INTERNAL_API_KEY) return true;
     const k = req.headers["x-internal-key"] || req.query.internal_key;
     return k === INTERNAL_API_KEY;
 }
 
-/** POST /api/ai/chat: try Python service (AI_SERVICE_URL), then LLM chain (Groq/OpenAI/Ollama), else keyword replies. */
+/** Quoted phrases in assistant text as candidate book titles (min length 3). */
+function extractQuotedTitles(text) {
+    const out = [];
+    const src = String(text || "");
+    if (!src) return out;
+    const pattern = /"([^"\n]{3,80})"|"([^"\n]{3,80})"|'([^'\n]{3,80})'|«([^»\n]{3,80})»|„([^"\n]{3,80})"/g;
+    let m;
+    while ((m = pattern.exec(src)) !== null) {
+        const raw = (m[1] || m[2] || m[3] || m[4] || m[5] || "").trim();
+        if (raw && raw.length >= 3) out.push(raw);
+    }
+    return out;
+}
+
+/** Resolves title strings to book cards; prefers titles substring-matching `replyText`, else first matches. */
+async function resolveBookCardsForChat(titles, replyText) {
+    const seen = new Set();
+    const cleaned = [];
+    for (const t of titles || []) {
+        const s = typeof t === "string" ? t.trim() : "";
+        if (!s || s.length < 3) continue;
+        const key = s.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        cleaned.push(s);
+        if (cleaned.length >= 16) break;
+    }
+    if (!cleaned.length) return [];
+
+    const lookups = await Promise.all(cleaned.map(async (title) => {
+        const esc = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        try {
+            return await Book.findOne({ title: new RegExp("^" + esc + "$", "i") })
+                .select("_id title authors thumbnail")
+                .lean();
+        } catch {
+            return null;
+        }
+    }));
+
+    const found = lookups.filter(Boolean);
+    if (!found.length) return [];
+
+    const toCard = (b) => ({
+        _id: String(b._id),
+        title: b.title,
+        authors: b.authors || "",
+        thumbnail: b.thumbnail || "/images/no-cover.svg",
+        url: `/books/${String(b._id)}`
+    });
+
+    const replyLower = String(replyText || "").toLowerCase();
+    if (replyLower) {
+        const mentioned = [];
+        const usedIds = new Set();
+        for (const b of found) {
+            if (!b.title || b.title.length < 4) continue;
+            if (replyLower.includes(b.title.toLowerCase()) && !usedIds.has(String(b._id))) {
+                usedIds.add(String(b._id));
+                mentioned.push(toCard(b));
+            }
+            if (mentioned.length >= 6) break;
+        }
+        if (mentioned.length) return mentioned;
+    }
+
+    const fallback = [];
+    const usedIds = new Set();
+    for (const b of found) {
+        const id = String(b._id);
+        if (usedIds.has(id)) continue;
+        usedIds.add(id);
+        fallback.push(toCard(b));
+        if (fallback.length >= 4) break;
+    }
+    return fallback;
+}
+
+/** Widget chat: proxy to ai-service, else Groq/OpenAI/Ollama; attaches book cards + interaction log. */
 app.post("/api/ai/chat", async (req, res) => {
     try {
         const message = (req.body && req.body.message ? String(req.body.message) : "").trim();
@@ -183,6 +256,25 @@ app.post("/api/ai/chat", async (req, res) => {
             ? String(req.user._id)
             : (req.body.user_id ? String(req.body.user_id) : null);
 
+        const currentBookRaw = req.body && req.body.current_book && typeof req.body.current_book === "object"
+            ? req.body.current_book
+            : null;
+        const currentBook = currentBookRaw && currentBookRaw.title && currentBookRaw._id
+            ? {
+                _id: String(currentBookRaw._id),
+                title: String(currentBookRaw.title),
+                authors: currentBookRaw.authors ? String(currentBookRaw.authors) : "",
+                url: currentBookRaw.url ? String(currentBookRaw.url) : `/books/${String(currentBookRaw._id)}`,
+                thumbnail: currentBookRaw.thumbnail ? String(currentBookRaw.thumbnail) : "/images/no-cover.svg"
+            }
+            : null;
+        const currentBookContext = currentBook
+            ? `Current book page context: title="${currentBook.title}", author(s)="${currentBook.authors}", URL="${currentBook.url}". If the user asks about "this book", answer about this exact book.`
+            : "";
+        const messageForAi = currentBookContext
+            ? `${currentBookContext}\n\nUser message:\n${message}`
+            : message;
+
         try {
             const chatUrl = `${AI_SERVICE_URL}/chat`;
             const ac = new AbortController();
@@ -191,7 +283,7 @@ app.post("/api/ai/chat", async (req, res) => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    user_input: message,
+                    user_input: messageForAi,
                     user_id: userId,
                     history: history.map(m => ({ role: m.role, content: m.content }))
                 }),
@@ -205,19 +297,37 @@ app.post("/api/ai/chat", async (req, res) => {
                 const semantic_hits = data.semantic_hits;
                 const ml_books = data.ml_books;
                 if (reply) {
+                    let interactionId = null;
                     try {
                         await SearchHistory.create({ user_id: userId || undefined, query: message });
-                        await AiInteraction.create({
+                        const created = await AiInteraction.create({
                             user_id: userId || undefined,
                             query: message,
                             response: reply,
                             meta: { explanation, semantic_hits, ml_books, source: "python" }
                         });
+                        interactionId = created && created._id ? String(created._id) : null;
                     } catch (e) { console.warn("AiInteraction save:", e.message); }
+
+                    const candidateTitles = [
+                        ...(currentBook ? [currentBook.title] : []),
+                        ...extractQuotedTitles(reply),
+                        ...(Array.isArray(semantic_hits) ? semantic_hits.map(h => h && h.title).filter(Boolean) : []),
+                        ...(Array.isArray(ml_books) ? ml_books.map(h => h && h.title).filter(Boolean) : [])
+                    ];
+                    let books = [];
+                    try {
+                        books = await resolveBookCardsForChat(candidateTitles, reply);
+                    } catch (e) {
+                        console.warn("resolveBookCardsForChat:", e.message);
+                    }
+
                     return res.json({
                         reply,
                         explanation,
-                        recommendations: { semantic: semantic_hits, ml: ml_books }
+                        recommendations: { semantic: semantic_hits, ml: ml_books },
+                        books,
+                        ...(interactionId ? { interactionId } : {})
                     });
                 }
             } else {
@@ -231,25 +341,42 @@ app.post("/api/ai/chat", async (req, res) => {
             "You are a helpful assistant for a Book Recommender web app. " +
             "Keep responses concise. Help users find books, genres, and explain how to use the site. " +
             "If you don't know something, ask a short clarifying question. " +
-            "Format every reply in Markdown: use a blank line between paragraphs; for lists put each item on its own line starting with \"- \" (hyphen and space). " +
+            "Use plain text only: no Markdown headings (#), no **bold**, no backticks. " +
+            "Separate paragraphs with a blank line; for lists put each item on its own line starting with \"- \" (hyphen and space). " +
             "Do not run list items together on one line with asterisks.";
 
         let llmOut = null;
         try {
-            llmOut = await tryLlmChat({ systemPrompt, history, message });
+            llmOut = await tryLlmChat({ systemPrompt, history, message: messageForAi });
         } catch (e) {
             console.warn("LLM fallback chain error:", e.message);
         }
         if (llmOut && llmOut.text) {
+            let interactionId = null;
             try {
-                await AiInteraction.create({
+                const created = await AiInteraction.create({
                     user_id: userId || undefined,
                     query: message,
                     response: llmOut.text,
                     meta: { source: llmOut.source || "llm" }
                 });
+                interactionId = created && created._id ? String(created._id) : null;
             } catch (e) { /* ignore */ }
-            return res.json({ reply: llmOut.text });
+
+            let books = [];
+            try {
+                books = await resolveBookCardsForChat([
+                    ...(currentBook ? [currentBook.title] : []),
+                    ...extractQuotedTitles(llmOut.text)
+                ], llmOut.text);
+            } catch (e) {
+                console.warn("resolveBookCardsForChat (llm):", e.message);
+            }
+            return res.json({
+                reply: llmOut.text,
+                books,
+                ...(interactionId ? { interactionId } : {})
+            });
         }
 
         const lower = message.toLowerCase();
@@ -267,14 +394,62 @@ app.post("/api/ai/chat", async (req, res) => {
             reply = "Open Sign-up, fill name/email/password, then submit. After that you can log in and start saving books.";
         }
 
-        return res.json({ reply });
+        let interactionId = null;
+        try {
+            const created = await AiInteraction.create({
+                user_id: userId || undefined,
+                query: message,
+                response: reply,
+                meta: { source: "keyword" }
+            });
+            interactionId = created && created._id ? String(created._id) : null;
+        } catch (e) { /* ignore */ }
+
+        return res.json({
+            reply,
+            ...(interactionId ? { interactionId } : {})
+        });
     } catch (err) {
         console.error("AI chat error:", err);
         return res.status(500).json({ error: "AI chat failed" });
     }
 });
 
-/** Books list for Python / Qdrant indexing (protected when INTERNAL_API_KEY is set). */
+/** Feedback: rows with `user_id` require the same session user; anonymous rows accept any client with the id. */
+app.post("/api/ai/feedback", async (req, res) => {
+    try {
+        const interactionId = req.body && req.body.interactionId != null
+            ? String(req.body.interactionId).trim()
+            : "";
+        const rating = req.body && req.body.rating != null ? String(req.body.rating).trim() : "";
+        if (!interactionId || !mongoose.isValidObjectId(interactionId)) {
+            return res.status(400).json({ error: "Invalid interactionId" });
+        }
+        if (rating !== "like" && rating !== "dislike") {
+            return res.status(400).json({ error: "rating must be like or dislike" });
+        }
+        const doc = await AiInteraction.findById(interactionId).lean();
+        if (!doc) {
+            return res.status(404).json({ error: "Interaction not found" });
+        }
+        const sessionUid =
+            typeof req.isAuthenticated === "function" && req.isAuthenticated() && req.user && req.user._id
+                ? String(req.user._id)
+                : null;
+        if (doc.user_id && String(doc.user_id) !== sessionUid) {
+            return res.status(403).json({ error: "Not allowed to rate this reply" });
+        }
+        await AiInteraction.updateOne(
+            { _id: interactionId },
+            { $set: { feedback: rating, feedbackAt: new Date() } }
+        );
+        return res.json({ ok: true });
+    } catch (e) {
+        console.warn("AI feedback error:", e.message);
+        return res.status(500).json({ error: "Failed to save feedback" });
+    }
+});
+
 app.get("/api/internal/books", async (req, res) => {
     if (!internalKeyOk(req)) {
         return res.status(401).json({ error: "Unauthorized" });
@@ -297,10 +472,6 @@ app.get("/api/internal/books", async (req, res) => {
     }
 });
 
-/**
- * JSON ML recommendations for a seed title (internal or same key as /api/sync-books).
- * Resolves one book by case-insensitive title regex, runs TF model, returns up to 20 books by bookIndex.
- */
 async function getMlRecommendationsByTitle(req, res) {
     if (!internalKeyOk(req)) {
         return res.status(401).json({ error: "Unauthorized" });
@@ -332,21 +503,18 @@ async function getMlRecommendationsByTitle(req, res) {
     }
 }
 
-/** OPENAI_API_KEY from env, trimmed; strips wrapping quotes from .env mistakes. */
 function openaiApiKey() {
     const raw = process.env.OPENAI_API_KEY;
     if (!raw) return "";
     return String(raw).trim().replace(/^['"]|['"]$/g, "");
 }
 
-/** GROQ_API_KEY from env, trimmed (same rules as openaiApiKey). */
 function groqApiKey() {
     const raw = process.env.GROQ_API_KEY;
     if (!raw) return "";
     return String(raw).trim().replace(/^['"]|['"]$/g, "");
 }
 
-/** Builds OpenAI-style messages[]: system + last user/assistant turns + current user message. */
 function buildLlmMessages(systemPrompt, history, message) {
     return [
         { role: "system", content: systemPrompt },
@@ -357,12 +525,7 @@ function buildLlmMessages(systemPrompt, history, message) {
     ];
 }
 
-/**
- * POST {baseUrl}/chat/completions (OpenAI-compatible API).
- * @param {{ baseUrl: string, apiKey: string, model: string, messages: object[] }} opts — baseUrl ends with /v1; apiKey may be "" for Ollama.
- * @returns {Promise<string>} Assistant message text.
- * @throws If HTTP non-OK or empty choices[0].message.content.
- */
+/** OpenAI-compatible POST …/chat/completions; `apiKey` may be empty (e.g. Ollama). */
 async function fetchOpenAiCompatibleChat({ baseUrl, apiKey, model, messages }) {
     const root = String(baseUrl || "").replace(/\/$/, "");
     const url = `${root}/chat/completions`;
@@ -391,13 +554,7 @@ async function fetchOpenAiCompatibleChat({ baseUrl, apiKey, model, messages }) {
     return String(content).trim();
 }
 
-/**
- * Calls one or more chat providers per LLM_PROVIDER (env).
- * auto: Groq (if GROQ_API_KEY) → OpenAI (if OPENAI_API_KEY) → Ollama (local, no key).
- * Stops on first non-empty reply.
- * @returns {Promise<{ text: string, source: string }|null>} null if no providers were tried (e.g. LLM_PROVIDER=groq but no key) or none returned text without throwing.
- * @throws The last error from the chain if every attempt threw (caller logs and falls back to keyword replies only when this is caught).
- */
+/** LLM_PROVIDER / keys: try providers in order; first non-empty wins; throws last error if all fail. */
 async function tryLlmChat({ systemPrompt, history, message }) {
     const messages = buildLlmMessages(systemPrompt, history, message);
     const mode = (process.env.LLM_PROVIDER || "auto").toLowerCase().trim();
@@ -492,35 +649,149 @@ async function tryLlmChat({ systemPrompt, history, message }) {
 }
 
 app.get('/books', async (req, res) => {
-    const page = parseInt(req.query.page) || 1;
+    const page = parseInt(req.query.page, 10) || 1;
     const limit = 12;
     const skip = (page - 1) * limit;
     const searchTerm = (req.query.search || '').trim();
-  
+    const yearFromRaw = (req.query.yearFrom || '').trim();
+    const yearToRaw = (req.query.yearTo || '').trim();
+    let yearFrom = yearFromRaw === '' ? null : parseInt(yearFromRaw, 10);
+    let yearTo = yearToRaw === '' ? null : parseInt(yearToRaw, 10);
+    if (yearFrom !== null && Number.isNaN(yearFrom)) yearFrom = null;
+    if (yearTo !== null && Number.isNaN(yearTo)) yearTo = null;
+    if (yearFrom !== null && yearTo !== null && yearFrom > yearTo) {
+        const t = yearFrom;
+        yearFrom = yearTo;
+        yearTo = t;
+    }
+
+    const buildBooksPageUrl = (pageNum) => {
+        const u = new URLSearchParams();
+        if (searchTerm) u.set('search', searchTerm);
+        if (yearFrom !== null) u.set('yearFrom', String(yearFrom));
+        if (yearTo !== null) u.set('yearTo', String(yearTo));
+        u.set('page', String(pageNum));
+        return '/books?' + u.toString();
+    };
+
+    const clearYearFilterUrl = (() => {
+        const u = new URLSearchParams();
+        if (searchTerm) u.set('search', searchTerm);
+        const q = u.toString();
+        return q ? '/books?' + q : '/books';
+    })();
+
+    const hasYearFilter = yearFrom !== null || yearTo !== null;
+
+    /** Year filter: `published_year` number or first 4 chars of `publishedDate` (string-only rows). */
+    function mongoYearRangeClause(from, to) {
+        const lo = from != null ? from : 1000;
+        const hi = to != null ? to : 9999;
+        let lo2 = lo;
+        let hi2 = hi;
+        if (lo2 > hi2) {
+            const t = lo2;
+            lo2 = hi2;
+            hi2 = t;
+        }
+
+        const numClause = {
+            published_year: {
+                $type: 'number',
+                ...(from != null ? { $gte: from } : {}),
+                ...(to != null ? { $lte: to } : {}),
+            },
+        };
+
+        const dateYearExpr = {
+            $expr: {
+                $let: {
+                    vars: {
+                        y: {
+                            $convert: {
+                                input: { $substrCP: [{ $ifNull: ['$publishedDate', ''] }, 0, 4] },
+                                to: 'int',
+                                onError: null,
+                                onNull: null,
+                            },
+                        },
+                    },
+                    in: {
+                        $and: [
+                            { $ne: ['$$y', null] },
+                            { $gte: ['$$y', lo2] },
+                            { $lte: ['$$y', hi2] },
+                        ],
+                    },
+                },
+            },
+        };
+
+        return { $or: [numClause, dateYearExpr] };
+    }
+
     try {
-        const filter = searchTerm ? {
-            $or: [
+        const filter = {};
+        if (searchTerm) {
+            filter.$or = [
                 { title: new RegExp(searchTerm, 'i') },
-                { authors: new RegExp(searchTerm, 'i') }
-            ]
-        } : {};
-  
+                { authors: new RegExp(searchTerm, 'i') },
+            ];
+        }
+        if (yearFrom !== null || yearTo !== null) {
+            const yearClause = mongoYearRangeClause(yearFrom, yearTo);
+            if (searchTerm) {
+                filter.$and = [{ $or: filter.$or }, yearClause];
+                delete filter.$or;
+            } else {
+                filter.$or = yearClause.$or;
+            }
+        }
+
+        const totalCatalogCount = await Book.countDocuments({});
         const totalBooks = await Book.countDocuments(filter);
-        const totalPages = Math.ceil(totalBooks / limit);
-        const books = await Book.find(filter).skip(skip).limit(limit);
+        const totalPages = Math.max(1, Math.ceil(totalBooks / limit));
+        const books = await Book.aggregate([
+            { $match: filter },
+            {
+                $addFields: {
+                    _ratingTier: {
+                        $switch: {
+                            branches: [
+                                { case: { $gte: [{ $ifNull: ['$average_rating', 0] }, 4.5] }, then: 5 },
+                                { case: { $gte: [{ $ifNull: ['$average_rating', 0] }, 4.0] }, then: 4 },
+                                { case: { $gte: [{ $ifNull: ['$average_rating', 0] }, 3.5] }, then: 3 },
+                                { case: { $gt:  [{ $ifNull: ['$average_rating', 0] }, 0] },   then: 2 },
+                            ],
+                            default: 1,
+                        },
+                    },
+                },
+            },
+            { $sort: { _ratingTier: -1, _id: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+            { $project: { _ratingTier: 0 } },
+        ]);
 
         let savedBookIds = [];
         if (req.isAuthenticated()) {
             const user = await User.findById(req.user._id);
             savedBookIds = user.savedBooks.map(id => id.toString());
         }
-  
+
         return res.render('books', {
             books,
             currentPage: page,
             totalPages,
             totalBooks,
+            totalCatalogCount,
             searchTerm,
+            yearFrom: yearFrom !== null ? String(yearFrom) : '',
+            yearTo: yearTo !== null ? String(yearTo) : '',
+            buildBooksPageUrl,
+            clearYearFilterUrl,
+            hasYearFilter,
             savedBookIds
         });
     } catch (err) {
@@ -546,6 +817,98 @@ app.get('/books/:id', async (req, res) => {
     } catch (err) {
         console.error('Error fetching book details:', err);
         res.status(500).send('Server error');
+    }
+});
+
+app.get('/api/books/:id/timeline', async (req, res) => {
+    const { id } = req.params;
+    const force = req.query.force === '1' || req.query.force === 'true';
+    try {
+        const result = await generateBookTimeline({ _id: id }, { force });
+        return res.json({
+            success: true,
+            cached: result.cached,
+            source: result.source,
+            generatedAt: result.generatedAt,
+            timeline: result.timeline,
+        });
+    } catch (err) {
+        console.error('Timeline error:', err);
+        if (err && /Book not found/.test(err.message)) {
+            return res.status(404).json({ success: false, error: 'Book not found' });
+        }
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to generate timeline',
+            details: err && err.message ? err.message : String(err),
+        });
+    }
+});
+
+app.get('/api/books/:id/author-birthplace', async (req, res) => {
+    const { id } = req.params;
+    const force = req.query.force === '1' || req.query.force === 'true';
+    try {
+        const result = await getAuthorBirthplace({ _id: id }, { force });
+        return res.json({
+            success: true,
+            cached: result.cached,
+            source: result.source,
+            location: result.location,
+        });
+    } catch (err) {
+        console.error('Author birthplace error:', err);
+        if (err && /Book not found/.test(err.message)) {
+            return res.status(404).json({ success: false, error: 'Book not found' });
+        }
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to resolve author birthplace',
+            details: err && err.message ? err.message : String(err),
+        });
+    }
+});
+
+app.post('/api/books/:id/enrich', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const existing = await Book.findById(id).lean();
+        if (!existing) {
+            return res.status(404).json({ error: 'Book not found' });
+        }
+
+        const missing = detectMissingFields(existing);
+        if (!missing.length) {
+            return res.json({
+                success: true,
+                alreadyComplete: true,
+                message: 'All book data is already complete',
+                book: existing,
+                updatedFields: [],
+                missingFields: [],
+            });
+        }
+
+        const result = await enrichBookData({ _id: id });
+        console.log(`[enrich] /api/books/${id}/enrich → updated=${JSON.stringify(result.updatedFields)} missing=${JSON.stringify(result.missingFields)} source=${result.source}`);
+        return res.json({
+            success: true,
+            alreadyComplete: false,
+            message: result.updatedFields.length
+                ? 'Book data enriched successfully'
+                : 'LLM did not return enough confident data to update fields',
+            book: result.book,
+            updatedFields: result.updatedFields,
+            missingFields: result.missingFields,
+            source: result.source,
+        });
+    } catch (err) {
+        console.error('Enrich book error:', err);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to enrich book data',
+            details: err && err.message ? err.message : String(err),
+        });
     }
 });
 

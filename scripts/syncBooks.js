@@ -1,32 +1,51 @@
-/**
- * Fetches Open Library works by subject, upserts into Mongo (`Book`), embeds with the same 128-d
- * `simpleEmbedding` as Python `ai-service` / `backend`, and upserts Qdrant points.
- * Triggered by POST /api/sync-books (internal key) or `node scripts/syncBooks.js`.
- */
-if (process.env.NODE_ENV !== "production") {
+/** Google Books or Open Library → Mongo + Qdrant; embedding must match Python services (128-d). */
+try {
   require("dotenv").config();
+} catch (_) {
+  /* dotenv optional */
 }
 
 const mongoose = require("mongoose");
 const { Book } = require("../config");
 
+const GOOGLE_BOOKS_URL = "https://www.googleapis.com/books/v1/volumes";
+const GOOGLE_BOOKS_API_KEY = (process.env.GOOGLE_BOOKS_API_KEY || "").trim();
 const OPENLIBRARY_SUBJECT_URL = "https://openlibrary.org/subjects";
+const BOOKS_SOURCE = (process.env.BOOKS_SOURCE || "google").toLowerCase().trim();
 const QDRANT_URL = (process.env.QDRANT_URL || "http://127.0.0.1:6333").replace(/\/$/, "");
 const QDRANT_COLLECTION = process.env.QDRANT_COLLECTION || "books";
 
-const SUBJECTS = ["fiction", "fantasy", "science", "history"];
-const OPENLIBRARY_LIMIT = 40;
-/** Max subject API calls per run (Open Library rate limits). */
-const MAX_REQUESTS_PER_RUN = 5;
+const DEFAULT_SUBJECTS = [
+  "fiction", "fantasy", "science", "history",
+  "romance", "mystery", "biography", "poetry",
+  "philosophy", "thriller",
+];
+const SUBJECTS = (process.env.BOOKS_SUBJECTS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const ACTIVE_SUBJECTS = SUBJECTS.length ? SUBJECTS : DEFAULT_SUBJECTS;
+
+const FETCH_LIMIT = 40;
+const MAX_REQUESTS_PER_RUN = parseInt(process.env.MAX_REQUESTS_PER_RUN || "5", 10);
+const RANDOM_OFFSET_MAX = parseInt(process.env.BOOKS_RANDOM_OFFSET_MAX || "200", 10);
+function randomStartIndex() {
+  return Math.floor(Math.random() * Math.max(1, RANDOM_OFFSET_MAX));
+}
 const REQUEST_DELAY_MS = 1000;
 const RETRY_DELAY_MS = 2000;
 const MAX_RETRIES = 2;
-const SKIP_FETCH_BOOK_COUNT_THRESHOLD = 100;
+const SKIP_FETCH_BOOK_COUNT_THRESHOLD = parseInt(
+  process.env.SKIP_FETCH_BOOK_COUNT_THRESHOLD || "100",
+  10
+);
+const SYNC_BOOKS_IGNORE_THRESHOLD = ["1", "true", "yes"].includes(
+  String(process.env.SYNC_BOOKS_IGNORE_THRESHOLD || "").toLowerCase()
+);
 const MONGO_BATCH_SIZE = 50;
 const QDRANT_BATCH_SIZE = 64;
 const VECTOR_DIM = 128;
 
-/** L2-normalized bag-of-chars vector; must stay in sync with Python services for the same dim. */
 function simpleEmbedding(text, dim = VECTOR_DIM) {
   const out = new Array(dim).fill(0);
   if (!text) return out;
@@ -50,7 +69,15 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function normalizeGoogleItem(item) {
+function parseYearFromPublishedDate(s) {
+  if (!s || typeof s !== "string") return undefined;
+  const m = String(s).trim().match(/^(\d{4})/);
+  if (!m) return undefined;
+  const y = parseInt(m[1], 10);
+  return Number.isFinite(y) ? y : undefined;
+}
+
+function normalizeOpenLibraryItem(item) {
   const title = item && item.title ? String(item.title).trim() : "";
   const olid = item && item.key ? String(item.key).replace("/works/", "").trim() : "";
   if (!title || !olid) return null;
@@ -63,15 +90,24 @@ function normalizeGoogleItem(item) {
     : "Fiction";
   const thumbnail = item.cover_id
     ? `https://covers.openlibrary.org/b/id/${item.cover_id}-L.jpg`
-    : "/images/default-book.jpg";
+    : "/images/no-cover.svg";
   const publishedDate = item.first_publish_year ? String(item.first_publish_year) : "";
   const description = item.description
     ? (typeof item.description === "string" ? item.description : String(item.description.value || ""))
     : "";
 
-  const isbn13 = `ol-${olid}`; // synthetic unique key for Open Library–only rows
+  const y = item.first_publish_year;
+  const published_year =
+    y != null && Number.isFinite(Number(y)) ? Math.trunc(Number(y)) : undefined;
+  const pagesMedian = item.number_of_pages_median;
+  const num_pages =
+    pagesMedian != null && Number.isFinite(Number(pagesMedian))
+      ? Math.trunc(Number(pagesMedian))
+      : undefined;
 
-  return {
+  const isbn13 = `ol-${olid}`;
+
+  const out = {
     olid,
     title,
     authors,
@@ -81,10 +117,62 @@ function normalizeGoogleItem(item) {
     publishedDate,
     isbn13
   };
+  if (published_year != null) out.published_year = published_year;
+  if (num_pages != null) out.num_pages = num_pages;
+  return out;
 }
 
-async function fetchSubjectWithRetry(subject) {
-  const url = `${OPENLIBRARY_SUBJECT_URL}/${encodeURIComponent(subject)}.json?limit=${OPENLIBRARY_LIMIT}`;
+function pickGoogleIsbn(volumeInfo) {
+  const ids = Array.isArray(volumeInfo?.industryIdentifiers)
+    ? volumeInfo.industryIdentifiers
+    : [];
+  const isbn13 = ids.find((x) => x && x.type === "ISBN_13" && x.identifier);
+  if (isbn13?.identifier) return String(isbn13.identifier);
+  const isbn10 = ids.find((x) => x && x.type === "ISBN_10" && x.identifier);
+  if (isbn10?.identifier) return `isbn10-${isbn10.identifier}`;
+  return null;
+}
+
+function normalizeGoogleBookItem(item) {
+  const volumeInfo = item?.volumeInfo || {};
+  const title = volumeInfo?.title ? String(volumeInfo.title).trim() : "";
+  const googleId = item?.id ? String(item.id).trim() : "";
+  if (!title || !googleId) return null;
+
+  const authors = Array.isArray(volumeInfo.authors) && volumeInfo.authors.length
+    ? volumeInfo.authors.map((a) => String(a || "").trim()).filter(Boolean).join(", ")
+    : "Unknown";
+  const categories = Array.isArray(volumeInfo.categories) && volumeInfo.categories.length
+    ? volumeInfo.categories.map((c) => String(c || "").trim()).filter(Boolean).join(", ")
+    : "General";
+  const description = volumeInfo.description ? String(volumeInfo.description) : "";
+  const publishedDate = volumeInfo.publishedDate ? String(volumeInfo.publishedDate) : "";
+  const published_year = parseYearFromPublishedDate(publishedDate);
+  const pc = volumeInfo.pageCount;
+  const num_pages =
+    pc != null && Number.isFinite(Number(pc)) ? Math.trunc(Number(pc)) : undefined;
+  const thumbnail = volumeInfo?.imageLinks?.thumbnail
+    ? String(volumeInfo.imageLinks.thumbnail).replace("http://", "https://")
+    : "/images/no-cover.svg";
+  const isbn13 = pickGoogleIsbn(volumeInfo) || `gb-${googleId}`;
+
+  const out = {
+    googleId,
+    title,
+    authors,
+    description,
+    categories,
+    thumbnail,
+    publishedDate,
+    isbn13
+  };
+  if (published_year != null) out.published_year = published_year;
+  if (num_pages != null) out.num_pages = num_pages;
+  return out;
+}
+
+async function fetchOpenLibrarySubjectWithRetry(subject, offset = 0) {
+  const url = `${OPENLIBRARY_SUBJECT_URL}/${encodeURIComponent(subject)}.json?limit=${FETCH_LIMIT}&offset=${offset}`;
 
   let attempt = 0;
   while (true) {
@@ -107,16 +195,68 @@ async function fetchSubjectWithRetry(subject) {
   }
 }
 
+async function fetchGoogleSubjectWithRetry(subject, startIndex = 0) {
+  const q = encodeURIComponent(`subject:${subject}`);
+  const keyPart = GOOGLE_BOOKS_API_KEY ? `&key=${encodeURIComponent(GOOGLE_BOOKS_API_KEY)}` : "";
+  const url = `${GOOGLE_BOOKS_URL}?q=${q}&startIndex=${startIndex}&maxResults=${FETCH_LIMIT}&langRestrict=en${keyPart}`;
+
+  let attempt = 0;
+  while (true) {
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data.items) ? data.items : [];
+    }
+
+    const retryable = res.status === 429 || res.status >= 500;
+    if (retryable && attempt < MAX_RETRIES) {
+      attempt += 1;
+      console.warn(`[syncBooks] Retry Google subject=${subject}, status=${res.status}, attempt ${attempt}/${MAX_RETRIES}`);
+      await sleep(RETRY_DELAY_MS);
+      continue;
+    }
+
+    const text = await res.text().catch(() => "");
+    throw new Error(`Google Books API error ${res.status} for subject=${subject}: ${text}`);
+  }
+}
+
+async function fetchSubjectAt(subject, offset) {
+  return BOOKS_SOURCE === "openlibrary"
+    ? fetchOpenLibrarySubjectWithRetry(subject, offset)
+    : fetchGoogleSubjectWithRetry(subject, offset);
+}
+
 async function fetchBooksFromSubjects() {
   const all = [];
-  const subjectsToUse = SUBJECTS.slice(0, MAX_REQUESTS_PER_RUN);
+  const subjectsToUse = ACTIVE_SUBJECTS.slice(0, MAX_REQUESTS_PER_RUN);
   let requestsMade = 0;
 
   for (const subject of subjectsToUse) {
-    const items = await fetchSubjectWithRetry(subject);
+    const offset = randomStartIndex();
+    let items = await fetchSubjectAt(subject, offset);
     requestsMade += 1;
+
+    let finalOffset = offset;
+    if (!items.length && offset > 0) {
+      const retryOffset = Math.floor(offset / 4);
+      console.log(`[syncBooks] subject=${subject} offset=${offset} returned 0; retrying at offset=${retryOffset}`);
+      await sleep(REQUEST_DELAY_MS);
+      items = await fetchSubjectAt(subject, retryOffset);
+      requestsMade += 1;
+      finalOffset = retryOffset;
+
+      if (!items.length && retryOffset > 0) {
+        console.log(`[syncBooks] subject=${subject} retry empty; falling back to offset=0`);
+        await sleep(REQUEST_DELAY_MS);
+        items = await fetchSubjectAt(subject, 0);
+        requestsMade += 1;
+        finalOffset = 0;
+      }
+    }
+
     all.push(...items);
-    console.log(`[syncBooks] subject=${subject}, fetched=${items.length} works`);
+    console.log(`[syncBooks] source=${BOOKS_SOURCE}, subject=${subject}, offset=${finalOffset}, fetched=${items.length}`);
     await sleep(REQUEST_DELAY_MS);
   }
 
@@ -139,7 +279,6 @@ async function ensureQdrantCollection() {
   }
 }
 
-/** Stable positive int id from string (Qdrant point id); same olid → same id across runs. */
 function qdrantPointId(uniqueId) {
   let hash = 0;
   const s = String(uniqueId || "");
@@ -150,17 +289,17 @@ function qdrantPointId(uniqueId) {
   return Math.abs(hash) + 1;
 }
 
-/** Upserts batches to QDRANT_COLLECTION; vectors from description or title+categories. */
 async function upsertQdrantPoints(docs) {
   if (!docs.length) return 0;
   await ensureQdrantCollection();
   let count = 0;
   for (const batch of chunkArray(docs, QDRANT_BATCH_SIZE)) {
     const points = batch.map((b) => ({
-      id: qdrantPointId(b.olid),
+      id: qdrantPointId(b.olid || b.googleId || b.isbn13 || b.title),
       vector: simpleEmbedding(b.description || `${b.title}. ${b.categories || ""}`),
       payload: {
         olid: b.olid,
+        googleId: b.googleId,
         title: b.title,
         authors: b.authors,
         categories: b.categories
@@ -180,13 +319,18 @@ async function upsertQdrantPoints(docs) {
   return count;
 }
 
+/**
+ * Inserts new books only; skips existing `isbn13` values.
+ * @param {object[]} books normalized catalog rows
+ * @returns {Promise<{ insertedCount: number, insertedDocs: object[], skippedDuplicates: number }>}
+ */
 async function saveToMongo(books) {
   if (!books.length) return { insertedCount: 0, insertedDocs: [], skippedDuplicates: 0 };
 
-  const olids = books.map((b) => b.olid);
-  const existing = await Book.find({ olid: { $in: olids } }, { olid: 1 }).lean();
-  const existingSet = new Set(existing.map((b) => String(b.olid)));
-  const newBooks = books.filter((b) => !existingSet.has(String(b.olid)));
+  const isbn13s = books.map((b) => b.isbn13).filter(Boolean);
+  const existing = await Book.find({ isbn13: { $in: isbn13s } }, { isbn13: 1 }).lean();
+  const existingSet = new Set(existing.map((b) => String(b.isbn13)));
+  const newBooks = books.filter((b) => !existingSet.has(String(b.isbn13)));
   const skippedDuplicates = books.length - newBooks.length;
 
   if (!newBooks.length) {
@@ -198,7 +342,7 @@ async function saveToMongo(books) {
   for (const batch of chunkArray(newBooks, MONGO_BATCH_SIZE)) {
     const ops = batch.map((b) => ({
       updateOne: {
-        filter: { olid: b.olid },
+        filter: { isbn13: b.isbn13 },
         update: { $setOnInsert: b },
         upsert: true
       }
@@ -216,13 +360,21 @@ async function saveToMongo(books) {
   return { insertedCount: insertedDocs.length, insertedDocs, skippedDuplicates };
 }
 
-/** @returns {Promise<object>} Stats object; throws on Open Library / Mongo / Qdrant failure. */
+/**
+ * Fetches books from external APIs, upserts Mongo, vectors new rows into Qdrant.
+ * @returns {Promise<object>} run stats (`skipped`, counts, `durationMs`)
+ */
 async function syncBooks() {
   const startedAt = Date.now();
   console.log("[syncBooks] Start");
   try {
-    const existingCount = await Book.countDocuments({ olid: { $exists: true, $ne: null } });
-    if (existingCount > SKIP_FETCH_BOOK_COUNT_THRESHOLD) {
+    const existingCount = await Book.countDocuments({ isbn13: { $exists: true, $ne: null } });
+    if (SYNC_BOOKS_IGNORE_THRESHOLD) {
+      console.log(
+        `[syncBooks] SYNC_BOOKS_IGNORE_THRESHOLD set — skipping size guard (${existingCount} books in DB)`
+      );
+    }
+    if (!SYNC_BOOKS_IGNORE_THRESHOLD && existingCount > SKIP_FETCH_BOOK_COUNT_THRESHOLD) {
       const durationMs = Date.now() - startedAt;
       const result = {
         skipped: true,
@@ -241,14 +393,16 @@ async function syncBooks() {
 
     const { items: rawBooks, requestsMade } = await fetchBooksFromSubjects();
     console.log(`[syncBooks] Requests made: ${requestsMade}`);
-    console.log(`[syncBooks] Fetched raw OpenLibrary works: ${rawBooks.length}`);
+    console.log(`[syncBooks] Fetched raw books from ${BOOKS_SOURCE}: ${rawBooks.length}`);
 
     const map = new Map();
     for (const item of rawBooks) {
-      const normalized = normalizeGoogleItem(item);
+      const normalized = BOOKS_SOURCE === "openlibrary"
+        ? normalizeOpenLibraryItem(item)
+        : normalizeGoogleBookItem(item);
       if (!normalized) continue;
-      if (!map.has(normalized.olid)) {
-        map.set(normalized.olid, normalized);
+      if (!map.has(normalized.isbn13)) {
+        map.set(normalized.isbn13, normalized);
       }
     }
     const normalizedBooks = Array.from(map.values());

@@ -1,4 +1,4 @@
-"""POST /api/v1/books/{book_id}/generate-description — LLM blurb from Mongo book fields."""
+"""Book-related HTTP routes."""
 from __future__ import annotations
 
 import logging

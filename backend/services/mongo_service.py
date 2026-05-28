@@ -1,4 +1,4 @@
-"""Motor helpers: users (`savedBooks`), books collection, optional `ai_interactions` logging."""
+"""Async Mongo access for the LangGraph agent."""
 from __future__ import annotations
 
 import logging
@@ -31,7 +31,6 @@ async def close_mongo() -> None:
 
 
 async def get_saved_books_for_user(user_id: str, settings: Settings | None = None) -> list[dict[str, Any]]:
-    """Up to 30 books from the user's `savedBooks` ids; [] if id invalid or empty."""
     settings = settings or get_settings()
     db = get_db(settings)
     try:
@@ -84,7 +83,6 @@ async def save_ai_interaction(
     meta: dict[str, Any],
     settings: Settings | None = None,
 ) -> None:
-    """Best-effort insert into `ai_interactions`; failures are logged and ignored."""
     settings = settings or get_settings()
     db = get_db(settings)
     doc: dict[str, Any] = {

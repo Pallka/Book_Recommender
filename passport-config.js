@@ -1,6 +1,12 @@
 const LocalStrategy = require("passport-local").Strategy;
 const bcrypt = require("bcrypt");
 
+/**
+ * Registers Passport local strategy (email + password) and session serialization.
+ * @param {import("passport")} passport
+ * @param {(email: string) => Promise<object|null>} getUserByEmail
+ * @param {(id: string) => Promise<object|null>} getUserById
+ */
 function initialize(passport, getUserByEmail, getUserById) {
     const authenticateUsers = async (email, password, done) => {
         const user = await getUserByEmail(email);

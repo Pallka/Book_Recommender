@@ -44,14 +44,18 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # In-stack hostname `mongo`; host dev can still use localhost:27017 via override.
-      - MONGO_URI=${MONGO_URI:-mongodb://mongo:27017/book-recommender}
+      - MONGO_URI=mongodb://mongo:27017/book-recommender
+      - RUNNING_IN_DOCKER=1
       - NODE_ENV=production
       - SECRET_KEY=${SECRET_KEY:-secret}
       - AI_SERVICE_URL=http://ai-service:8000
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-sonnet-4-20250514}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434/v1}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2}
     depends_on:
       - mongo
       - ai-service

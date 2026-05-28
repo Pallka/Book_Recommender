@@ -1,4 +1,4 @@
-"""POST /api/ai/chat and /api/v1/chat: LangGraph agent + Qdrant hits for `recommendations` (same shape the Node widget expects)."""
+"""Chat routes: LangGraph agent; response shape matches the Node chat widget."""
 from __future__ import annotations
 
 import logging
@@ -21,7 +21,6 @@ router = APIRouter(prefix="/api", tags=["chat"])
 
 
 async def _fetch_ml_titles(seed_title: str, settings) -> list[BookSummary]:
-    """Calls Node `GET /api/recommendations?title=...` when `NODE_APP_URL` is set; empty list on failure."""
     base = (settings.node_app_url or "").rstrip("/")
     if not base or not seed_title.strip():
         return []
