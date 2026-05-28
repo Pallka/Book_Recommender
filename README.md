@@ -65,8 +65,8 @@ book-recommender/
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/book-recommender.git
-cd book-recommender
+git clone https://github.com/Pallka/Book_Recommender.git
+cd Book_Recommender
 ```
 
 2. Install dependencies:
