@@ -1,139 +1,88 @@
-# Book Recommender
+# 📘 Book Recommender 2025
 
-A modern web application for book recommendations using machine learning, built with Node.js, Express, MongoDB, and TensorFlow.js. It also includes an AI assistant (semantic search via Qdrant and OpenAI), LLM-powered book enrichment, historical timelines, and an author birthplace map (Leaflet).
+> Вебзастосунок для пошуку книг, збереження у профіль, персоналізованих рекомендацій (TensorFlow.js) та AI-асистента з семантичним пошуком (Qdrant + OpenAI).
 
-**Repository:** https://github.com/Pallka/Book_Recommender
+**Репозиторій проєкту:** https://github.com/Pallka/Book_Recommender
 
-## 📚 Project Overview
+---
 
-Book Recommender 2025 is an intelligent book recommendation system that uses machine learning to provide personalized book suggestions based on user preferences and reading history. The system analyzes user behavior, book categories, and reading patterns to deliver accurate recommendations.
+## 👤 Автор
 
-In addition to the TensorFlow.js model, the application offers:
+- **ПІБ**: Палка Катерина
+- **Група**: ФЕC-42
+- **Керівник**: Парубочий В.О.
+- **Дата виконання**: 28.05.2026
 
-- **AI chat widget** — floating assistant with book cards, chat history in `localStorage`, and like/dislike feedback
-- **Semantic book search** — Python `ai-service` (FastAPI) with Qdrant vector store and OpenAI embeddings
-- **Book enrichment** — LLM fills missing metadata (Claude or Ollama)
-- **Historical timeline** — contextual events for a book’s publication period
-- **Author map** — Leaflet map of the author’s birthplace (coordinates from LLM)
-- **Catalog sync** — scripts import books from external APIs into MongoDB and Qdrant
+---
 
-## Project Structure
+## 📌 Загальна інформація
 
-```
-Book_Recommender/
-├── server.js                 # Main application entry point (routes, AI proxy, APIs)
-├── config.js                 # MongoDB models and Docker-aware connection
-├── passport-config.js        # Authentication configuration
-├── docker-compose.yml        # MongoDB, Qdrant, ai-service, Node app
-├── Dockerfile                # Node application image
-├── model/
-│   └── modelHandler.js       # TensorFlow.js recommendation model
-├── services/                 # Node LLM helpers
-│   ├── llm.js                # OpenAI-compatible LLM client (Claude / Ollama)
-│   ├── bookEnrichment.js     # Enrich book fields via LLM
-│   ├── bookTimeline.js       # Historical timeline generation
-│   └── authorBirthplace.js   # Author birthplace for map
-├── scripts/
-│   ├── syncBooks.js          # Sync books → MongoDB + Qdrant embeddings
-│   ├── importNew.js          # Import new books only
-│   ├── updateExisting.js     # Update existing catalog records
-│   ├── updateBookIndices.js  # Refresh book indices for ML model
-│   └── run.js                # Run full sync pipeline
-├── ai-service/
-│   ├── main.py               # FastAPI: semantic search + OpenAI chat
-│   ├── Dockerfile
-│   └── requirements.txt
-├── backend/                  # Optional LangGraph ReAct API (separate deploy)
-│   ├── main.py
-│   ├── ai_agent/             # LangGraph agent, tools, context
-│   ├── routes/               # books, chat
-│   └── services/             # Mongo, Qdrant, embeddings, LLM
-├── views/
-│   ├── partials/
-│   │   ├── header.ejs
-│   │   ├── footer.ejs
-│   │   ├── ai_widget.ejs     # AI chat modal UI
-│   │   └── book-thumbnail.ejs
-│   ├── js/
-│   │   └── ai-agent.js       # Chat client logic
-│   ├── css/
-│   ├── images/
-│   ├── about.ejs
-│   ├── book-details.ejs      # Details, timeline, map, Enrich with AI
-│   ├── books.ejs
-│   ├── error.ejs
-│   ├── faqs.ejs
-│   ├── home.ejs
-│   ├── index.ejs
-│   ├── login.ejs
-│   ├── recommendations.ejs
-│   ├── register.ejs
-│   └── register_success.ejs
-├── sample_ai_agent/
-│   └── robot_svg.svg         # AI widget avatar
-├── screenshots/              # UI screenshots for documentation
-├── package.json
-└── package-lock.json
-```
+- **Тип проєкту**: Вебзастосунок (серверний рендеринг + REST API)
+- **Мова програмування**: JavaScript (Node.js), Python (FastAPI — `ai-service`)
+- **Фреймворки / бібліотеки**: Express, EJS, Bootstrap, MongoDB, Mongoose, Passport.js, TensorFlow.js, Qdrant, Leaflet.js
+- **AI / ML**: OpenAI (чат), Claude або Ollama (збагачення книг, timeline, карта автора), власна рекомендаційна модель на TensorFlow.js
 
-## 📄 File Descriptions
+---
 
-### Core Files
-- `server.js`: Main application file that initializes Express, sets up middleware, defines routes, proxies AI chat to `ai-service`, and exposes book enrichment/timeline/map APIs
-- `config.js`: Contains database models (`User`, `Book`, `SearchHistory`, `AiInteraction`) and Docker-aware `MONGO_URI` handling
-- `passport-config.js`: Implements authentication strategies using Passport.js
+## 🧠 Опис функціоналу
 
-### Model
-- `modelHandler.js`: Implements the TensorFlow.js recommendation model with:
-  - Neural network architecture (3 layers with dropout)
-  - User profile preprocessing
-  - Book category management
-  - Recommendation generation logic
+-  Реєстрація, вхід і вихід із системи (сесії Passport.js)
+-  Каталог книг: пошук, пагінація, перегляд деталей
+-  Збереження та видалення книг у профілі користувача
+-  Персоналізовані рекомендації на основі збережених книг (ML-модель)
+-  AI-чат (плаваючий віджет): відповіді з картками книг, like/dislike
+-  Карта місця народження автора (Leaflet + LLM)
+-  Історичний контекст книги (timeline, LLM)
+-  Збагачення метаданих книги (`Enrich with AI`)
+-  Синхронізація каталогу з зовнішніх API у MongoDB та Qdrant
 
-### Services (Node.js)
-- `llm.js`: Shared LLM client (Anthropic Claude or Ollama via OpenAI-compatible API)
-- `bookEnrichment.js`: Fills missing book fields using structured LLM JSON output
-- `bookTimeline.js`: Generates a historical timeline for a book’s era
-- `authorBirthplace.js`: Resolves author birthplace coordinates for Leaflet
+---
 
-### AI Service (Python)
-- `ai-service/main.py`: FastAPI service for semantic book search (Qdrant + embeddings) and OpenAI-powered chat replies used by the Node proxy
+## 🧱 Опис основних файлів
 
-### Scripts
-- `syncBooks.js`: Imports books from Google Books / Open Library into MongoDB and Qdrant
-- `importNew.js`, `updateExisting.js`, `run.js`: Partial or full catalog sync workflows
-- `updateBookIndices.js`: Updates indices used by the recommendation model
+| Файл / каталог                 | Призначення                                                                  |
+|--------------------------------|------------------------------------------------------------------------------|
+| `server.js`                    | Точка входу Express: маршрути, API, проксі AI-чату                           |
+| `config.js`                    | Підключення MongoDB, моделі `User`, `Book`, `SearchHistory`, `AiInteraction` |
+| `passport-config.js`           | Локальна стратегія авторизації (email + пароль)                              |
+| `model/modelHandler.js`        | Рекомендаційна модель TensorFlow.js, профіль користувача                     |
+| `services/llm.js`              | Виклики LLM (Claude / Ollama) для JSON-відповідей                            |
+| `services/bookEnrichment.js`   | Доповнення полів книги через LLM                                             |
+| `services/bookTimeline.js`     | Генерація історичного timeline                                               |
+| `services/authorBirthplace.js` | Місце народження автора для карти                                            |
+| `views/`                       | EJS-шаблони сторінок і partials (`header`, `footer`, `ai_widget`)            |
+| `views/js/ai-agent.js`         | Клієнтський чат: localStorage, fetch, feedback                               |
+| `scripts/syncBooks.js`         | Імпорт книг → Mongo + вектори в Qdrant                                       |
+| `ai-service/main.py`           | FastAPI: семантичний пошук + OpenAI-чат                                      |
+| `backend/`                     | Опційний LangGraph ReAct API (окремий деплой)                                |
+| `docker-compose.yml`           | Mongo, Qdrant, `ai-service`, Node `app`                                      |
 
-### Views
-- EJS templates for all pages with responsive design
-- Partial components for code reusability (`header`, `footer`, `ai_widget`, `book-thumbnail`)
-- `ai-agent.js`: Client-side chat (history, fetch to `/api/ai/chat`, feedback)
-- Static assets (CSS, images); book details page includes timeline, map, and enrichment UI
+---
 
-## Prerequisites
+## ▶Як запустити проєкт «з нуля»
 
-- Node.js (v18.0.0 or higher recommended)
-- MongoDB (v4.4 or higher, or Docker)
-- npm (v8.0.0 or higher)
+### 1. Встановлення інструментів
+
+- Node.js v18+ та npm v8+
+- Docker Desktop (рекомендовано для MongoDB і Qdrant)
+- Python 3.12+ (якщо запуск `ai-service` окремо на хості)
 - Git
-- **Docker Desktop** (recommended for MongoDB, Qdrant, and full stack)
-- **Python 3.12+** (if running `ai-service` locally outside Docker)
-- **OpenAI API key** (for AI chat and embeddings; optional fallbacks: Groq, Ollama, Anthropic for enrichment)
 
-## Installation
+### 2. Клонування репозиторію
 
-1. Clone the repository:
 ```bash
 git clone https://github.com/Pallka/Book_Recommender.git
 cd Book_Recommender
 ```
 
-2. Install dependencies:
+### 3. Встановлення залежностей
+
 ```bash
 npm install
 ```
 
-3. Create a `.env` file in the root directory:
+### 4. Створення файлу `.env` у корені проєкту
+
 ```env
 NODE_ENV=development
 MONGO_URI=mongodb://localhost:27017/book-recommender
@@ -147,268 +96,183 @@ OLLAMA_BASE_URL=http://127.0.0.1:11434/v1
 OLLAMA_MODEL=llama3.2
 ```
 
-4. Initialize the database:
+Для `ai-service` (локально або в Docker) також потрібні `QDRANT_HOST`, `NODE_APP_URL`, `INTERNAL_API_KEY`
 
-**Option A — Docker (recommended):**
+### 5. Запуск
+
+**Варіант A — повний стек у Docker (найпростіше):**
+
 ```bash
 docker compose up --build
 ```
-Open http://localhost:3000
 
-**Option B — Local Node + databases:**
+Відкрийте http://localhost:3000
+
+**Варіант B — розробка на хості:**
+
 ```bash
+# Бази даних
 docker compose up -d mongo qdrant
-mongosh   # optional: verify MongoDB
+
+# Node.js
 npm run devStarts
-```
-In a separate terminal, run `ai-service` (see `ai-service/requirements.txt`):
-```bash
+
+# AI-сервіс (окремий термінал)
 cd ai-service
 python -m venv .venv
-source .venv/Scripts/activate   # Windows Git Bash
+.\.venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
-```
 
-5. Populate the catalog (first run or after empty DB):
-```bash
+# Заповнення каталогу (за потреби)
 npm run sync:books
 ```
 
-6. Start the development server (if not using Docker for the app):
-```bash
-npm run devStarts
+### npm-скрипти
+
+| Скрипт                | Опис                                |
+|-----------------------|-------------------------------------|
+| `npm run devStarts`   | Express з nodemon (порт 3000)       |
+| `npm run sync:books`  | Синхронізація книг → Mongo + Qdrant |
+| `npm run sync:import` | `scripts/importNew.js`              |
+| `npm run sync:update` | `scripts/updateExisting.js`         |
+| `npm run sync:all`    | `scripts/run.js`                    |
+
+---
+
+## API приклади
+
+### Авторизація
+
+**POST /login** — форма (`email`, `password`), сесія в cookie.
+
+**POST /register** — `name`, `email`, `password`, `confirmPassword`.
+
+**DELETE /logout** — вихід із системи.
+
+---
+
+### Книги
+
+**GET /books** — каталог (query: `search`, `page`, `yearFrom`, `yearTo`).
+
+**GET /books/:id** — сторінка деталей книги.
+
+**POST /save-book** (потрібен вхід)
+
+```json
+{
+  "bookId": "507f1f77bcf86cd799439011"
+}
 ```
 
-### npm Scripts
+**DELETE /delete-book/:bookId** (потрібен вхід)
 
-| Script                | Description                            |
-|-----------------------|----------------------------------------|
-| `npm run devStarts`   | Start Express with nodemon (port 3000) |
-| `npm run sync:books`  | Sync books to MongoDB + Qdrant         |
-| `npm run sync:import` | Import new books only                  |
-| `npm run sync:update` | Update existing books                  |
-| `npm run sync:all`    | Run full sync pipeline                 |
+---
 
-## Usage
+### AI-чат
 
-### User Registration and Login
-1. Navigate to http://localhost:3000
-2. Click "Register" to create a new account
-3. Log in with your credentials
+**POST /api/ai/chat**
 
-### Book Recommendations
-1. Browse the book catalog (`/books`)
-2. Save books to your profile
-3. Receive personalized recommendations based on your preferences (`/recommendations`)
-4. View detailed book information (`/books/:id`)
-
-### AI Assistant
-1. Click the floating AI button (bottom-right on supported pages)
-2. Ask for genres, authors, or similar books
-3. On the book details page, the assistant receives context about the current book
-4. Use like/dislike on responses (stored for analytics)
-
-### Book Details — Timeline, Map, Enrichment
-1. Open a book page — view description and metadata
-2. **Historical timeline** — loads via `/api/books/:id/timeline`
-3. **Author map** — Leaflet map via `/api/books/:id/author-birthplace`
-4. **Enrich with AI** — POST `/api/books/:id/enrich` to fill missing fields (requires Anthropic or Ollama)
-
-### Managing Your Profile
-1. View saved books on your dashboard (`/home`)
-2. Delete saved books from your profile
-3. Navigate to recommendations when you have saved books
-
-## Development
-
-### Environment Setup
-1. Install development dependencies:
-```bash
-npm install --save-dev nodemon dotenv
+```json
+{
+  "message": "Recommend fantasy books",
+  "history": [],
+  "current_book": {
+    "_id": "507f1f77bcf86cd799439011",
+    "title": "Pride and Prejudice",
+    "authors": "Jane Austen",
+    "url": "/books/507f1f77bcf86cd799439011"
+  }
+}
 ```
 
-2. Configure MongoDB:
-- Create the database:
-```bash
-use book-recommender
-```
-- Import initial book data (recommended):
-```bash
-npm run sync:books
-```
+**Response (фрагмент):**
 
-3. Configure Qdrant and `ai-service` for semantic search and chat (see `docker-compose.yml`).
-
-### Running Tests
-```bash
-npm test
+```json
+{
+  "reply": "...",
+  "books": [{ "_id": "...", "title": "...", "thumbnail": "..." }],
+  "interactionId": "..."
+}
 ```
 
-### Debugging
-1. Server-side debugging:
-   - Use console.log statements for basic debugging
-   - Check server logs in the terminal
-   - Monitor MongoDB operations
-   - Verify `AI_SERVICE_URL` and `INTERNAL_API_KEY` when chat fails
+**POST /api/ai/feedback**
 
-2. Client-side debugging:
-   - Use browser developer tools
-   - Check browser console for errors
-   - Monitor network requests (`/api/ai/chat`, book APIs)
-
-## Machine Learning Model
-
-The recommendation system uses a neural network with:
-- Input layer: 2003 nodes (book indices + categories)
-- Hidden layers:
-  - Dense layer (512 units, ReLU activation)
-  - Dropout layer (30%)
-  - Dense layer (256 units, ReLU activation)
-  - Dropout layer (20%)
-- Output layer: 567 nodes (softmax activation)
-
-### Model Features
-- User profile vectorization
-- Category encoding
-- Real-time predictions
-- Memory management with tensor disposal
-
-Semantic recommendations in chat combine **Qdrant vector search** (Python service) with **ML index matches** from `modelHandler.js`.
-
-## Security Features
-
-1. Password Security:
-   - Bcrypt hashing
-   - Salted passwords
-   - Secure session management
-
-2. Authentication:
-   - Passport.js local strategy
-   - Session-based authentication
-   - Protected routes (`/home`, `/recommendations`, save/delete book)
-
-3. Data Protection:
-   - Input validation
-   - XSS protection
-   - CSRF protection
-   - Internal APIs protected with `INTERNAL_API_KEY` / `X-Internal-Key` header
-
-## API Endpoints
-
-### Authentication
-- POST /login
-- POST /register
-- DELETE /logout
-
-### Books
-- GET /books
-- GET /books/:id
-- POST /save-book
-- DELETE /delete-book/:bookId
-- GET /user-saved-books
-
-### Recommendations
-- GET /recommendations
-- GET /api/recommendations (internal ML; requires `X-Internal-Key`)
-
-### AI Chat
-- POST /api/ai/chat
-- POST /api/ai/feedback
-
-### Book Context (LLM)
-- GET /api/books/:id/timeline
-- GET /api/books/:id/author-birthplace
-- POST /api/books/:id/enrich
-
-### Sync (admin)
-- POST /api/sync-books
-
-## UI/UX Features
-
-1. Responsive Design:
-   - Bootstrap 5.3.3
-   - Mobile-first approach
-   - Adaptive layouts
-
-2. User Interface:
-   - Modern card-based design
-   - Interactive elements
-   - Loading states
-   - Error handling
-   - Floating AI chat modal with book cards in replies
-   - Leaflet map on book details
-   - Historical timeline section
-
-3. Accessibility:
-   - ARIA labels
-   - Semantic HTML
-   - Keyboard navigation
-
-## Troubleshooting
-
-### Common Issues
-
-1. MongoDB Connection:
-```bash
-# Check MongoDB service
-sudo service mongodb status
-
-# Restart MongoDB
-sudo service mongodb restart
-
-# Or with Docker
-docker compose up -d mongo
+```json
+{
+  "interactionId": "...",
+  "rating": "like"
+}
 ```
 
-2. Node.js Errors:
-```bash
-# Clear npm cache
-npm cache clean --force
+---
 
-# Reinstall dependencies
-rm -rf node_modules
-npm install
-```
+### Збагачення та контекст книги
 
-3. Model Initialization:
-- Check TensorFlow.js compatibility
-- Verify model parameters
-- Monitor memory usage
+| Метод | Шлях                               | Опис                       |
+|-------|------------------------------------|----------------------------|
+| GET   | `/api/books/:id/timeline`          | Історичний контекст        |
+| GET   | `/api/books/:id/author-birthplace` | Координати для карти       |
+| POST  | `/api/books/:id/enrich`            | Доповнення полів через LLM |
 
-4. AI chat not responding:
-- Ensure `ai-service` is running on port 8000
-- Check `AI_SERVICE_URL` and `OPENAI_API_KEY`
-- Run `npm run sync:books` if Qdrant collection is empty
+**GET /api/recommendations?title=Harry%20Potter`** — внутрішній ML-міст (заголовок `X-Internal-Key`).
 
-5. Timeline / map / enrichment unavailable:
-- Set `ANTHROPIC_API_KEY` or run Ollama locally
-- First LLM request may take longer (cold start)
+---
 
-## 📈 Performance Optimization
+## Інструкція для користувача
 
-1. Database:
-   - Indexed queries
-   - Efficient data structures
-   - Cached responses
+1. **Головна сторінка** (`/`) — опис сервісу, кнопки **Log in** / **Sign-up**.
 
-2. Machine Learning:
-   - Batch processing
-   - Memory management
-   - Optimized tensor operations
+2. **Реєстрація та вхід** — створіть обліковий запис, увійдіть на `/home`.
 
-3. Vector search:
-   - Qdrant for semantic retrieval
-   - Embedding batching in sync scripts
+3. **Каталог** (`/books`) — пошук книги, перегляд карток, **Save Book**, **Show more**.
 
-## Contributing
+4. **Профіль** (`/home`) — збережені книги, **Delete**, перехід до деталей.
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit changes
-4. Push to the branch
-5. Open a pull request
+5. **Рекомендації** (`/recommendations`) — персоналізований список після збереження книг.
 
-## Author
+6. **Сторінка книги** — опис, timeline, карта автора, **Enrich with AI**, **Save Book**.
 
-- Kateryna Palka
+7. **AI-чат** — кнопка внизу справа; можна питати про жанри або про поточну книгу на сторінці деталей.
+
+8. **Вихід** — **Log out** у меню.
+
+---
+
+## Приклади / скриншоти
+
+Зображення містяться у папці `/screenshots/`)
+- Головна сторінка
+- Каталог книг
+- Профіль (збережені книги)
+- Рекомендації
+- Сторінка книги + AI-чат
+
+
+---
+
+## Проблеми і рішення
+
+Проблема — Рішення 
+MongoDB не підключається — `docker compose up -d mongo`; для Node на хості: `MONGO_URI=mongodb://localhost:27017/book-recommender` 
+AI-чат не відповідає — Перевірте `ai-service` на порту 8000, `AI_SERVICE_URL`, `OPENAI_API_KEY` 
+Порожня колекція Qdrant — `npm run sync:books` 
+Timeline / карта не завантажуються — Потрібен `ANTHROPIC_API_KEY` або Ollama; перший запит може тривати довго 
+Захищені сторінки перенаправляють на login — Увійдіть у систему; `/home` і `/recommendations` потребують сесії 
+Помилки залежностей Node — `npm cache clean --force`, видалити `node_modules`, `npm install` 
+
+---
+
+## Використані джерела / література
+
+- [Express.js](https://expressjs.com/) — документація
+- [MongoDB](https://www.mongodb.com/docs/) та [Mongoose](https://mongoosejs.com/)
+- [TensorFlow.js](https://www.tensorflow.org/js)
+- [Qdrant](https://qdrant.tech/documentation/)
+- [OpenAI API](https://platform.openai.com/docs)
+- [Bootstrap 5](https://getbootstrap.com/docs/5.3/getting-started/introduction/)
+- [Leaflet](https://leafletjs.com/)
+- [Passport.js](http://www.passportjs.org/)
+
+
