@@ -265,9 +265,16 @@ npm run sync:books
 
 ---
 
+## Releases
+
+Версія `v1.0` доступна за посиланням: 
+https://github.com/Pallka/Book_Recommender/releases/tag/v1.0
+
+---
+
 ## Використані джерела / література
 
-- [Express.js](https://expressjs.com/) — документація
+- [Express.js](https://expressjs.com/)
 - [MongoDB](https://www.mongodb.com/docs/) та [Mongoose](https://mongoosejs.com/)
 - [TensorFlow.js](https://www.tensorflow.org/js)
 - [Qdrant](https://qdrant.tech/documentation/)
