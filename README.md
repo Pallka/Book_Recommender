@@ -254,13 +254,14 @@ npm run sync:books
 
 ## Проблеми і рішення
 
-Проблема — Рішення 
-MongoDB не підключається — `docker compose up -d mongo`; для Node на хості: `MONGO_URI=mongodb://localhost:27017/book-recommender` 
-AI-чат не відповідає — Перевірте `ai-service` на порту 8000, `AI_SERVICE_URL`, `OPENAI_API_KEY` 
-Порожня колекція Qdrant — `npm run sync:books` 
-Timeline / карта не завантажуються — Потрібен `ANTHROPIC_API_KEY` або Ollama; перший запит може тривати довго 
-Захищені сторінки перенаправляють на login — Увійдіть у систему; `/home` і `/recommendations` потребують сесії 
-Помилки залежностей Node — `npm cache clean --force`, видалити `node_modules`, `npm install` 
+| Проблема | Рішення |
+|-----------|----------|
+| MongoDB не підключається | Виконайте `docker compose up -d mongo`. Для запуску Node.js на хості використовуйте `MONGO_URI=mongodb://localhost:27017/book-recommender`. |
+| AI-чат не відповідає | Перевірте роботу сервісу `ai-service` на порту `8000`, а також коректність змінних `AI_SERVICE_URL` та `OPENAI_API_KEY`. |
+| Порожня колекція Qdrant | Виконайте `npm run sync:books`. |
+| Timeline або карта не завантажуються | Необхідно налаштувати `ANTHROPIC_API_KEY` або Ollama. Перший запит може виконуватися довше через генерацію та кешування даних. |
+| Захищені сторінки перенаправляють на Login | Увійдіть до системи. Сторінки `/home` та `/recommendations` доступні лише для автентифікованих користувачів. |
+| Помилки залежностей Node.js | Виконайте `npm cache clean --force`, видаліть каталог `node_modules` та запустіть `npm install`. |
 
 ---
 
